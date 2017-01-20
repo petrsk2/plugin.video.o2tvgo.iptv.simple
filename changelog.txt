@@ -1,3 +1,12 @@
+2017-01-20 [1.1.7] - cummulative commit
+* Added basic EPG functionality for TV played directly from the plugin:
+** Name and time of currently playing programme in the directory listing
+** Setting of info (name, time, duration, plot, fanart, etc) for currently playing channel
+** Added "CH+", "CH-", "Channel info" items to the directory listing; info loads a window containing current programme info and next 10 programmes
+** Added "Refresh CH/EPG" item to directory listing: to requeue the current channel with new EPG info
+* Added creation of XMLTV .XML and .M3U files based on EPG/channel info from O2TVGO
+** Added "Save EPG" item to directory listing: resaves the .XML and .M3U files
+** Added support for additional .XML and .M3U files - so they are parsed and relevant info is added to the .XML and .M3U files generated based on O2TVGO
 2015-11-13 [1.1.6]
 * Locality fetched from subscription configuration
 * Temporary no broadcast fix
@@ -19,4 +28,4 @@
 2015-03-29 [1.0.1]
 * Missing logo bugfix
 2014-12-23 [1.0.0]
- * Initial release
+* Initial release

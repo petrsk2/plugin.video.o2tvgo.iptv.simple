@@ -8,6 +8,7 @@ import httplib
 import urllib
 import json
 import requests
+import time
 
 __author__ = "Štěpán Ort"
 __license__ = "MIT"
@@ -89,6 +90,8 @@ class O2TVGO:
         self.locality = None
         self.offer = None
         self.device_id = device_id
+        self.channel_key = None
+        self.epg_id = None
 
     def refresh_access_token(self):
         if not self.username or not self.password:
@@ -133,6 +136,51 @@ class O2TVGO:
         self.offer = j["billingParams"]["offers"]
         self.tariff = j["billingParams"]["tariff"]
         self.locality = j["locality"]
+
+    def channel_epg(self):
+        if not self.access_token:
+            self.refresh_access_token()
+        access_token = self.access_token
+        if not self.channel_key:
+            return
+        headers = _COMMON_HEADERS
+        cookies = { "access_token": access_token, "deviceId": self.device_id }
+        timestampNow = int(time.time()) - (5*60)
+        fromTimestamp = timestampNow * 1000
+        if self.hoursToLoad:
+            hoursToLoad = self.hoursToLoad
+        else:
+            hoursToLoad = 24
+        toTimestamp = ( timestampNow + 3600 * hoursToLoad ) * 1000
+        params = {"language": "slo",
+            "channelKey": self.channel_key,
+            "fromTimestamp": fromTimestamp,
+            "toTimestamp": toTimestamp}
+        req = requests.get('http://app.o2tv.cz/sws/server/tv/channel-programs.json', params=params, headers=headers, cookies=cookies)
+        j = req.json()
+        return j
+
+    def current_programme(self):
+        if not self.channel_key:
+            return
+        epg = O2TVGO.channel_epg(self)
+        epg[0].items()
+        return epg[0]
+
+    def epg_detail(self):
+        if not self.epg_id:
+            return
+        if not self.access_token:
+            self.refresh_access_token()
+        access_token = self.access_token
+        headers = _COMMON_HEADERS
+        cookies = { "access_token": access_token, "deviceId": self.device_id }
+        params = {"language": "slo",
+            "epgId": self.epg_id}
+        req = requests.get('http://app.o2tv.cz/sws/server/tv/epg-detail.json', params=params, headers=headers, cookies=cookies)
+        j = req.json()
+        j.items()
+        return j
 
     def live_channels(self):
         if not self.access_token:
