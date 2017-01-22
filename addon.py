@@ -226,7 +226,7 @@ try:
             return None, None
         aPlayingNow = playingNow.split('/')
         playingNowFileName = aPlayingNow[-1]
-        logErr(playingNowFileName)
+        logNtc(playingNowFileName)
         return playingNow, playingNowFileName
 
     def compareChannelHosts(ch1, ch2):
@@ -304,10 +304,10 @@ try:
             m3u_file.write(m3u)
             m3u_file.close()
             logNtc("'"+_m3u_+"' file saved successfully")
+            if restartPVR:
+                _restartPVR()
         else:
             logErr("Could not open '"+_m3u_+"' for writing")
-        if restartPVR:
-            xbmc.executebuiltin("StartPVRManager()")
         
     def saveEPG(restartPVR = True):
         logNtc("saveEPG() started")
@@ -323,8 +323,6 @@ try:
                 logNtc("'"+_xmltv_+"' file fresh enough; not refreshing")
                 return
         logNtc("Starting refreshing of EPG")
-        if restartPVR:
-            xbmc.executebuiltin("StopPVRManager()")
         channels = _fetchChannels()
         if not channels:
             logErr("no channels in channelListing")
@@ -356,6 +354,15 @@ try:
                 if imageUrl:
                     et_programme_icon = etree.SubElement(et_programme, "icon")
                     et_programme_icon.set("src", imageUrl)
+        xmlElTree = etree.ElementTree(et_tv)
+        xmlString = etree.tostring(et_tv, encoding='utf8')
+        xmltv_file = open(_xmltv_, 'w+')
+        if xmltv_file:
+            xmltv_file.write(xmlString)
+            xmltv_file.close()
+            logNtc("'o2tvgo-epg.xml' file saved successfully with O2TV epg")
+            if restartPVR:
+                _restartPVR()
         et_tv = _merge_additional_epg_xml(et_tv)
         xmlElTree = etree.ElementTree(et_tv)
         xmlString = etree.tostring(et_tv, encoding='utf8')
@@ -363,9 +370,22 @@ try:
         if xmltv_file:
             xmltv_file.write(xmlString)
             xmltv_file.close()
-            logNtc("'o2tvgo-epg.xml' file saved successfully")
-        if restartPVR:
-            xbmc.executebuiltin("StartPVRManager()")
+            logNtc("'o2tvgo-epg.xml' file saved successfully with additional epg")
+            if restartPVR:
+                _restartPVR()
+
+    def _restartPVR():
+        #logNtc("Stopping PVR manager")
+        #xbmc.executebuiltin("StopPVRManager()")
+        player = xbmc.Player()
+        isPlaying = player.isPlayingVideo()
+        if isPlaying:
+            playingNow = player.getPlayingFile()
+            if playingNow.startswith("pvr://")
+                logNtc("Player is currently playing a pvr channel, not restarting")
+        logNtc("(Re)Starting PVR manager")
+        xbmc.executebuiltin("StartPVRManager()")
+        logNtc("PVR manager restart done")
 
     def _merge_additional_epg_xml(et_tv, test=False):
         logNtc("Starting merge of additional epg xml files to '"+_xmltv_+"'")
@@ -691,6 +711,9 @@ try:
             i += 1
         playChannel(first_channel_key)
 
+    def _test():
+        logNtc("Executing _test()")
+
     def _toString(text):
         if type(text).__name__=='unicode':
             output = text.encode('utf-8')
@@ -774,12 +797,12 @@ try:
     elif refreshepg:
         refreshEpgForCurrentChannel()
     elif saveepg:
-        saveChannels(False)
-        saveEPG(False)
+        saveChannels()
+        saveEPG()
     elif mergeepg:
         _merge_additional_epg_xml(None, True)
     elif test:
-        _getAdditionalChannelNames()
+        _test()
     else:
         channelListing()
 except Exception as ex:
