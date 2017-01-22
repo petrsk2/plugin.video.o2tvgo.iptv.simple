@@ -381,7 +381,7 @@ try:
         isPlaying = player.isPlayingVideo()
         if isPlaying:
             playingNow = player.getPlayingFile()
-            if playingNow.startswith("pvr://")
+            if playingNow.startswith("pvr://"):
                 logNtc("Player is currently playing a pvr channel, not restarting")
         logNtc("(Re)Starting PVR manager")
         xbmc.executebuiltin("StartPVRManager()")
