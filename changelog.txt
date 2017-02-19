@@ -1,4 +1,6 @@
-2017-01-20 [1.1.7] - cummulative commit
+2017-02-19 [1.0.1]
+* Changing the code to only "inherit" from the original plugin and add XMLTV functionality
+2017-01-20 [1.1.7] - Initial cummulative commit:
 * Added basic EPG functionality for TV played directly from the plugin:
 ** Name and time of currently playing programme in the directory listing
 ** Setting of info (name, time, duration, plot, fanart, etc) for currently playing channel
@@ -7,25 +9,3 @@
 * Added creation of XMLTV .XML and .M3U files based on EPG/channel info from O2TVGO
 ** Added "Save EPG" item to directory listing: resaves the .XML and .M3U files
 ** Added support for additional .XML and .M3U files - so they are parsed and relevant info is added to the .XML and .M3U files generated based on O2TVGO
-2015-11-13 [1.1.6]
-* Locality fetched from subscription configuration
-* Temporary no broadcast fix
-2015-10-30 [1.1.5]
-* Error variable fix
-* Sending version of plugin to remote error log
-2015-08-18 [1.1.4]
-* Device ID saved to settings
-2015-08-17 [1.1.3]
-* Tariff fix
-2015-08-11 [1.1.2]
-* SSL verification turned off (thx to Vita56)
-2015-08-11 [1.1.1]
-* Subscription code isn't number
-2015-08-11 [1.1.0]
-* Subscription code fix
-* Refactoring to use requests library
-* Premium channels support
-2015-03-29 [1.0.1]
-* Missing logo bugfix
-2014-12-23 [1.0.0]
-* Initial release

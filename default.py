@@ -9,7 +9,6 @@ import xbmcplugin
 import xbmcaddon
 import urllib
 import httplib
-from urlparse import urlparse
 import json
 import traceback
 import random
@@ -18,40 +17,99 @@ import time
 import gzip
 import re
 import glob
+import requests
+try:
+    # Python 3
+    from urllib.parse import urlparse, parse_qs
+except ImportError:
+    # Python 2
+    from urlparse import urlparse, parse_qs
 import xml.etree.ElementTree as etree
 from uuid import getnode as get_mac
+
+_addon_ = xbmcaddon.Addon('plugin.video.o2tvgo')
+_addon_this_ = xbmcaddon.Addon('plugin.video.o2tvgo.xmltv')
+_scriptname_ = _addon_this_.getAddonInfo('name')
+
+_addon_dir_ = xbmc.translatePath( _addon_.getAddonInfo('path') )
+sys.path.append( os.path.join( _addon_dir_ ) )
+
 from o2tvgo import O2TVGO
-from o2tvgo import AuthenticationError
-from o2tvgo import TooManyDevicesError
-from o2tvgo import ChannelIsNotBroadcastingError
+from addon import _deviceId, _randomHex16, logDbg, logErr, _fetchChannels, _fetchChannel, _reload_settings, _toString, _sendError
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
 params = False
 try:
     ###############################################################################
-    REMOTE_DBG = False
-    # append pydev remote debugger
-    if REMOTE_DBG:
-        try:
-            sys.path.append(os.environ['HOME']+r'/.xbmc/system/python/Lib/pysrc')
-            sys.path.append(os.environ['APPDATA']+r'/Kodi/system/python/Lib/pysrc')
-            import pydevd
-            pydevd.settrace('localhost', port=5678, stdoutToServer=True, stderrToServer=True)
-        except ImportError:
-            sys.stderr.write("Error: Could not load pysrc!")
-            sys.exit(1)
+    _COMMON_HEADERS = { "X-Nangu-App-Version" : "Android#1.2.9",
+                        "X-Nangu-Device-Name" : "Nexus 7",
+                        "User-Agent" : "Dalvik/2.1.0 (Linux; U; Android 5.1.1; Nexus 7 Build/LMY47V)",
+                        "Accept-Encoding": "gzip",
+                        "Connection" : "Keep-Alive" }
+
+    def o2tvgo__init__(self, device_id, username, password):
+        self.username = username
+        self.password = password
+        self._live_channels = {}
+        self.access_token = None
+        self.subscription_code = None
+        self.locality = None
+        self.offer = None
+        self.device_id = device_id
+        self.channel_key = None
+        self.epg_id = None
+
+    def channel_epg(self):
+        if not self.access_token:
+            self.refresh_access_token()
+        access_token = self.access_token
+        if not self.channel_key:
+            return
+        headers = _COMMON_HEADERS
+        cookies = { "access_token": access_token, "deviceId": self.device_id }
+        timestampNow = int(time.time()) - (5*60)
+        fromTimestamp = timestampNow * 1000
+        if self.hoursToLoad:
+            hoursToLoad = self.hoursToLoad
+        else:
+            hoursToLoad = 24
+        toTimestamp = ( timestampNow + 3600 * hoursToLoad ) * 1000
+        params = {"language": "slo",
+            "channelKey": self.channel_key,
+            "fromTimestamp": fromTimestamp,
+            "toTimestamp": toTimestamp}
+        req = requests.get('http://app.o2tv.cz/sws/server/tv/channel-programs.json', params=params, headers=headers, cookies=cookies)
+        j = req.json()
+        return j
+
+    def current_programme(self):
+        if not self.channel_key:
+            return
+        epg = O2TVGO.channel_epg(self)
+        epg[0].items()
+        return epg[0]
+
+    def epg_detail(self):
+        if not self.epg_id:
+            return
+        if not self.access_token:
+            self.refresh_access_token()
+        access_token = self.access_token
+        headers = _COMMON_HEADERS
+        cookies = { "access_token": access_token, "deviceId": self.device_id }
+        params = {"language": "slo",
+            "epgId": self.epg_id}
+        req = requests.get('http://app.o2tv.cz/sws/server/tv/epg-detail.json', params=params, headers=headers, cookies=cookies)
+        j = req.json()
+        j.items()
+        return j
+
+    O2TVGO.__init__ = o2tvgo__init__
+    O2TVGO.channel_epg = channel_epg
+    O2TVGO.current_programme = current_programme
+    O2TVGO.epg_detail = epg_detail
     ###############################################################################
-    _addon_ = xbmcaddon.Addon('plugin.video.o2tvgo')
-
-    def _deviceId():
-        mac = get_mac()
-        hexed = hex((mac*7919)%(2**64))
-        return ('0000000000000000'+hexed[2:-1])[16:]
-
-    def _randomHex16():
-        return ''.join([random.choice('0123456789abcdef') for x in range(16)])
-
     # First run
     if not (_addon_.getSetting("settings_init_done") == 'true'):
         DEFAULT_SETTING_VALUES = { 'send_errors' : 'false' }
@@ -77,7 +135,6 @@ try:
     ###############################################################################
     _profile_ = xbmc.translatePath(_addon_.getAddonInfo('profile'))
     _lang_   = _addon_.getLocalizedString
-    _scriptname_ = _addon_.getAddonInfo('name')
     _first_error_ = (_addon_.getSetting('first_error') == "true")
     _send_errors_ = (_addon_.getSetting('send_errors') == "true")
     _version_ = _addon_.getAddonInfo('version')
@@ -87,14 +144,14 @@ try:
     _icon_ = xbmc.translatePath( os.path.join(_addon_.getAddonInfo('path'), 'icon.png' ) )
     _handle_ = int(sys.argv[1])
     _baseurl_ = sys.argv[0]
+
+    ###############################################################################
     _xmltv_ = xbmc.translatePath('special://home/o2tvgo-epg.xml')
     _m3u_ = xbmc.translatePath('special://home/o2tvgo-prgs.m3u')
     _m3u_additional_ = xbmc.translatePath('special://home/o2tvgo-prgs-additional.m3u')
     _xmltv_additional_filelist_pattern_ = xbmc.translatePath('special://home/rytecxmltv*.gz')
     _xmltv_additional_ = xbmc.translatePath('special://home/merged_epg.xml')
     _xmltv_additional_gzip_ = xbmc.translatePath('special://home/merged_epg.xml.gz')
-    #_xmltv_additional_ = xbmc.translatePath('special://home/merged_xml_test.xml')
-    #_xmltv_additional_gzip_ = xbmc.translatePath('special://home/rytecxmltv-Hungary.gz')
     _xmltv_test_output_file_ = xbmc.translatePath('special://home/merged_xml_test_out.xml')
 
     _o2tvgo_ = O2TVGO(_device_id_, _username_, _password_)
@@ -104,73 +161,13 @@ try:
             msg = msg.encode('utf-8')
         xbmc.log("[%s] %s"%(_scriptname_,msg.__str__()), level)
 
-    def logDbg(msg):
-        log(msg,level=xbmc.LOGDEBUG)
-
     def logNtc(msg):
         log(msg,level=xbmc.LOGNOTICE)
-
-    def logErr(msg):
-        log(msg,level=xbmc.LOGERROR)
     ###############################################################################
+    def _emptyFunction():
+        logNtc("replacing function with empty one")
 
-    def _fetchChannels():
-        global _o2tvgo_
-        channels = None
-        ex = False
-        while not channels:
-            try:
-                channels = _o2tvgo_.live_channels()
-            except AuthenticationError:
-                if ex:
-                    return None
-                ex = True
-                d = xbmcgui.Dialog()
-                d.notification(_scriptname_, _lang_(30003), xbmcgui.NOTIFICATION_ERROR)
-                _reload_settings()
-            except TooManyDevicesError:
-                d = xbmcgui.Dialog()
-                d.notification(_scriptname_, _lang_(30006), xbmcgui.NOTIFICATION_ERROR)
-                return None
-        return channels
-
-    def _fetchChannel(channel_key):
-        link = None
-        ex = False
-        while not link:
-            _o2tvgo_.access_token = _addon_.getSetting('access_token')
-            channels = _fetchChannels()
-            if not channels:
-                return
-            channel = channels[channel_key]
-            try:
-                link = channel.url()
-                _addon_.setSetting('access_token', _o2tvgo_.access_token)
-            except AuthenticationError:
-                if ex:
-                    return None
-                ex = True
-                d = xbmcgui.Dialog()
-                d.notification(_scriptname_, _lang_(30003), xbmcgui.NOTIFICATION_ERROR)
-                _reload_settings()
-            except ChannelIsNotBroadcastingError:
-                d = xbmcgui.Dialog()
-                d.notification(_scriptname_, _lang_(30007), xbmcgui.NOTIFICATION_INFO)
-                return
-        return link, channel
-
-    def _reload_settings():
-        _addon_.openSettings()
-        global _first_error_
-        _first_error_ = (_addon_.getSetting('first_error') == "true")
-        global _send_errors_
-        _send_errors_ = (_addon_.getSetting('send_errors') == "true")
-        global _username_
-        _username_ = _addon_.getSetting("username")
-        global _password_
-        _password_ = _addon_.getSetting("password")
-        global _o2tvgo_
-        _o2tvgo_ = O2TVGO(_device_id_, _username_, _password_)
+    channelListing = _emptyFunction
 
     def _fetchCurrentEpg(channel_key, hoursToLoad = 24):
         global _o2tvgo_
@@ -234,17 +231,6 @@ try:
         aCh2 = ch2.split('/')
         return aCh1[3] == aCh2[3]
 
-    def addDirectoryItem(label, url, plot=None, title=None, date=None, icon=_icon_, image=None, fanart=None, isFolder=True):
-        li = xbmcgui.ListItem(label)
-        if not title:
-            title = label
-        liVideo = {'title': title}
-        if image:
-            li.setThumbnailImage(image)
-        li.setIconImage(icon)
-        li.setInfo("video", liVideo)
-        xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
-
     def channelListing():
         channels = _fetchChannels()
         if not channels:
@@ -255,17 +241,32 @@ try:
         addDirectoryItem("CH-", _baseurl_+ "?playprevious=1", image=_icon_, isFolder=False)
         addDirectoryItem("Show Info", _baseurl_+"?showinfo=1", image=_icon_, isFolder=False)
         for channel in channels_sorted:
+            logNtc("getting channel url and epg for " + channel.name)
             link = channel.url()
             epg = _fetchCurrentEpg(channel.channel_key)
+            #logNtc(epg)
             channelName = channel.name
             if epg['name']:
                 channelName += ": " + epg['name']
             timeCurrent = " [" + _timestampishToTime(epg['startTimestamp']) + "-" + _timestampishToTime(epg['endTimestamp']) + "]"
             channelName += timeCurrent
+            logNtc(channelName)
+            logNtc(_baseurl_+ "?play=" + urllib.quote_plus(channel.channel_key))
             addDirectoryItem(channelName, _baseurl_+ "?play=" + urllib.quote_plus(channel.channel_key), image=channel.logo_url, isFolder=False)
         addDirectoryItem("Refresh CH/EPG", _baseurl_+ "?refreshepg=1", image=_icon_, isFolder=False)
         addDirectoryItem("Save EPG", _baseurl_+"?saveepg=1", image=_icon_, isFolder=False)
         xbmcplugin.endOfDirectory(_handle_, updateListing=False)
+
+    def addDirectoryItem(label, url, plot=None, title=None, date=None, icon=_icon_, image=None, fanart=None, isFolder=True):
+        li = xbmcgui.ListItem(label)
+        if not title:
+            title = label
+        liVideo = {'title': title}
+        if image:
+            li.setThumbnailImage(image)
+        li.setIconImage(icon)
+        li.setInfo("video", liVideo)
+        xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
     def saveChannels(restartPVR = True):
         logNtc("saveChannels() started")
@@ -375,14 +376,15 @@ try:
                 _restartPVR()
 
     def _restartPVR():
-        #logNtc("Stopping PVR manager")
-        #xbmc.executebuiltin("StopPVRManager()")
         player = xbmc.Player()
         isPlaying = player.isPlayingVideo()
         if isPlaying:
             playingNow = player.getPlayingFile()
             if playingNow.startswith("pvr://"):
                 logNtc("Player is currently playing a pvr channel, not restarting")
+                return
+        logNtc("Stopping PVR manager")
+        xbmc.executebuiltin("StopPVRManager()")
         logNtc("(Re)Starting PVR manager")
         xbmc.executebuiltin("StartPVRManager()")
         logNtc("PVR manager restart done")
@@ -713,42 +715,7 @@ try:
 
     def _test():
         logNtc("Executing _test()")
-
-    def _toString(text):
-        if type(text).__name__=='unicode':
-            output = text.encode('utf-8')
-        else:
-            output = str(text)
-        return output
-
-    def _sendError(params, exc_type, exc_value, exc_traceback):
-        status = "no status"
-        try:
-            conn = httplib.HTTPSConnection('script.google.com')
-            req_data = urllib.urlencode({ 'addon' : _scriptname_, 'version' : _version_, 'params' : _toString(params), 'type' : exc_type, 'value' : exc_value, 'traceback' : _toString(traceback.format_exception(exc_type, exc_value, exc_traceback))})
-            headers = {"Content-type": "application/x-www-form-urlencoded"}
-            conn.request(method='POST', url='/macros/s/AKfycbyZfKhi7A_6QurtOhcan9t1W0Tug-F63_CBUwtfkBkZbR2ysFvt/exec', body=req_data, headers=headers)
-            resp = conn.getresponse()
-            while resp.status >= 300 and resp.status < 400:
-                location = resp.getheader('Location')
-                o = urlparse(location, allow_fragments=True)
-                host = o.netloc
-                conn = httplib.HTTPSConnection(host)
-                url = o.path + "?" + o.query
-                conn.request(method='GET', url=url)
-                resp = conn.getresponse()
-            if resp.status >= 200 and resp.status < 300:
-                resp_body = resp.read()
-                json_body = json.loads(resp_body)
-                status = json_body['status']
-                if status == 'ok':
-                    return True
-                else:
-                    logErr(status)
-        except:
-            pass
-        logErr(status)
-        return False
+        #_restartPVR()
 
     def get_params():
             param=[]
@@ -815,9 +782,3 @@ except Exception as ex:
             _send_errors_ = (_addon_.getSetting('send_errors') == "true")
         _addon_.setSetting("first_error", "true")
         _first_error_ = (_addon_.getSetting('first_error') == "true")
-    if _send_errors_:
-        if _sendError(params, exc_type, exc_value, exc_traceback):
-            xbmcgui.Dialog().notification(_scriptname_, _lang_(30502), xbmcgui.NOTIFICATION_INFO)
-        else:
-            xbmcgui.Dialog().notification(_scriptname_, _lang_(30503), xbmcgui.NOTIFICATION_ERROR)
-            traceback.print_exception(exc_type, exc_value, exc_traceback)
