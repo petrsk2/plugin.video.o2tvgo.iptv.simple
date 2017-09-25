@@ -1,3 +1,5 @@
+2017-09-25 [1.0.2]
+* Adding timeshift functionality: possibility to play a programme from the past two days as a video (with time seeking support)
 2017-02-19 [1.0.1]
 * Changing the code to only "inherit" from the original plugin and add XMLTV functionality
 2017-01-20 [1.1.7] - Initial cummulative commit:
