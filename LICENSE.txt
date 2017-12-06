@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (c) 2014 Štěpán Ort
+Copyright (c) 2017 charliecek
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

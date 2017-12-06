@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.o2tvgo.xmltv" name="O2TV Go EPG + XMLTV support" version="1.0.2" provider-name="charliecek">
+<addon id="plugin.video.o2tvgo.iptv.simple" name="O2TV Go for IPTV Simple with Timeshift support" version="1.0.3" provider-name="charliecek">
   <requires>
     <import addon="xbmc.python" version="2.1.0"/>
     <import addon="script.module.requests" version="2.7.0"/>
-    <import addon="plugin.video.o2tvgo" version="1.1.7"/>
+    <import addon="pvr.iptvsimple" version="2.4.14"/>
   </requires>
   <extension point="xbmc.python.pluginsource" library="default.py">
     <provides>video</provides>
   </extension>
   <extension point="xbmc.addon.metadata">
-    <summary>XMLTV + EPG support for O2TV Go</summary>
-  <description>XMLTV + EPG support for the O2TV Go plugin</description>
-    <description lang="sk">podpora XMLTV + EPG pre plugin O2TV Go</description>
-    <description lang="cs">podpora XMLTV + EPG pro plugin O2TV Go</description>
+    <summary>O2TV Go EPG and playlist fetcher for IPTV Simple with Timeshift support</summary>
+  <description>O2TV Go channel and EPG fetcher for IPTV Simple Client with Timeshift support</description>
+    <description lang="sk">získava zoznam kanálov a EPG z O2TV Go služby pre IPTV Simple Client a pridáva podporu Timeshift</description>
     <platform>all</platform>
   </extension>
 </addon>
