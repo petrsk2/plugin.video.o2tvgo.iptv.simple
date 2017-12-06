@@ -7,11 +7,11 @@
 		<control type="group">
 			<centertop>50%</centertop>
 			<centerleft>50%</centerleft>
-			<height>750</height>
+			<height>742</height>
 			<width>1220</width>
 			<include content="DialogBackgroundCommons">
 				<param name="width" value="1220" />
-				<param name="height" value="750" />
+				<param name="height" value="742" />
 				<param name="header_label" value="" />
 				<param name="header_id" value="1" />
 			</include>
@@ -19,14 +19,14 @@
 				<left>0</left>
 				<top>80</top>
 				<width>920</width>
-				<bottom>2</bottom>
+				<height>665</height>
 				<texture border="40">buttons/dialogbutton-nofo.png</texture>
 			</control>
 			<control type="list" id="3">
 				<left>20</left>
 				<top>100</top>
 				<width>880</width>
-				<bottom>20</bottom>
+				<height>625</height>
 				<onup>3</onup>
 				<ondown>3</ondown>
 				<onleft>9001</onleft>
@@ -35,6 +35,7 @@
 				<scrolltime>200</scrolltime>
 				<include content="DefaultSimpleListLayout">
 					<param name="width" value="880" />
+					<param name="height" value="69" />
 					<param name="list_id" value="3" />
 				</include>
 			</control>
@@ -42,7 +43,7 @@
 				<left>20</left>
 				<top>100</top>
 				<width>880</width>
-				<bottom>20</bottom>
+				<height>625</height>
 				<onup>6</onup>
 				<ondown>6</ondown>
 				<onleft>9001</onleft>
@@ -118,7 +119,7 @@
 				<left>910</left>
 				<top>100</top>
 				<width>12</width>
-				<bottom>20</bottom>
+				<height>625</height>
 				<onleft condition="Control.IsVisible(3)">3</onleft>
 				<onleft condition="Control.IsVisible(6)">6</onleft>
 				<onright>9001</onright>
@@ -126,11 +127,12 @@
 			</control>
 			<control type="label">
 				<left>925</left>
-				<bottom>10</bottom>
+				<top>695</top>
 				<width>275</width>
 				<height>35</height>
 				<font>font12</font>
 				<align>right</align>
+				<aligny>center</aligny>
 				<textcolor>grey</textcolor>
 				<label>$VAR[SelectLabel]</label>
 			</control>

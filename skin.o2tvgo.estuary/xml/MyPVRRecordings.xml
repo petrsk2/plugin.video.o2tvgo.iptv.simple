@@ -13,7 +13,7 @@
 				<control type="fixedlist" id="50">
 					<left>0</left>
 					<top>list_y_offset</top>
-					<right>860</right>
+					<right>778</right>
 					<bottom>list_y_offset</bottom>
 					<onleft>9000</onleft>
 					<onright>73</onright>
@@ -23,7 +23,7 @@
 					<focusposition>5</focusposition>
 					<pagecontrol>73</pagecontrol>
 					<scrolltime>200</scrolltime>
-					<focusedlayout height="80">
+					<focusedlayout height="80" width="tvrecordings_width">
 						<control type="image">
 							<left>0</left>
 							<top>0</top>
@@ -58,7 +58,7 @@
 							<label>$INFO[ListItem.Label2]</label>
 						</control>
 					</focusedlayout>
-					<itemlayout height="80">
+					<itemlayout height="80" width="tvrecordings_width">
 						<control type="image">
 							<left>21</left>
 							<top>30</top>
