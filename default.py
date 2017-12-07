@@ -38,10 +38,14 @@ params = False
 
 try:
     ###############################################################################
+    ## Globals ##
     _addon_ = xbmcaddon.Addon('plugin.video.o2tvgo.iptv.simple')
     _scriptname_ = _addon_.getAddonInfo('name')
     _logs_ = Logs(_scriptname_)
     _jsonRPC_ = JsonRPC(_logs_)
+    _addon_pvrIptvSimple_ = None
+    _useIptvSimpleTimeshift_ = True
+    _epgTimeshift_ = 0
 
     def _isAddonInstalled(addonId):
         addons = _jsonRPC_._getAddons()
@@ -54,6 +58,30 @@ try:
             # No/incorrect response from jsonrpc server
             return False
 
+    def _getPvrIptvSimpleEpgShift(default):
+        global _addon_pvrIptvSimple_
+        shift = None
+        if not _addon_pvrIptvSimple_:
+            pluginDetails = _jsonRPC_._getAddonDetails("pvr.iptvsimple")
+            if pluginDetails:
+                #logNtc("Response: "+_toString(pluginDetails))
+                enabled = pluginDetails["enabled"]
+                if enabled:
+                    _addon_pvrIptvSimple_ = xbmcaddon.Addon('pvr.iptvsimple')
+                else:
+                    response = _jsonRPC_._setAddonEnabled("pvr.iptvsimple", True)
+                    if response:
+                        xbmc.sleep(1000)
+                        _addon_pvrIptvSimple_ = xbmcaddon.Addon('pvr.iptvsimple')
+        if _addon_pvrIptvSimple_:
+            shift = _addon_pvrIptvSimple_.getSetting("epgTimeShift")
+        if not shift:
+            msg = "Couldn't get pvr.iptvsimple plugin's epgTimeShift setting; using default time shift: "+default
+            notificationWarning(msg)
+            logErr(msg)
+            shift = default
+        return float(shift)
+
     ## START: Copied from the original plugin by Štěpán Ort ##
     def _deviceId():
         mac = get_mac()
@@ -63,10 +91,11 @@ try:
     def _randomHex16():
         return ''.join([random.choice('0123456789abcdef') for x in range(16)])
 
+    ## START changes by @ch ##
+
     ## First run ##
-    ## START @ch ##
     if not (_addon_.getSetting("settings_init_done") == 'true'):
-        SETTING_KEYS = ['username',  'password',  'send_errors', 'device_id',  'settings_init_done']
+        O2TVGO_SETTING_KEYS = ['username',  'password',  'send_errors', 'device_id']
         o2tvGoAddonId = "plugin.video.o2tvgo"
         isO2TVGoInstalled = _isAddonInstalled(o2tvGoAddonId)
         if isO2TVGoInstalled:
@@ -74,19 +103,69 @@ try:
             if o2tvGoPluginDetails and "enabled" in o2tvGoPluginDetails:
                 isO2TVGoEnabled = o2tvGoPluginDetails["enabled"]
                 if isO2TVGoEnabled:
+                    _logs_.logNtc("Setting values from O2TV Go plugin")
                     _addon_o2tvgo_ = xbmcaddon.Addon(o2tvGoAddonId)
-                    for settingKey in SETTING_KEYS:
+                    for settingKey in O2TVGO_SETTING_KEYS:
                         settingVal = _addon_o2tvgo_.getSetting(settingKey)
                         if settingVal:
                             _addon_.setSetting(settingKey, settingVal)
-    ## END @ch ##
-    if not (_addon_.getSetting("settings_init_done") == 'true'):
-        DEFAULT_SETTING_VALUES = { 'send_errors' : 'false' }
+        _logs_.logNtc("Setting default values")
+        DEFAULT_SETTING_VALUES = {
+            'send_errors' : 'false', 
+            'use_iptv_simple_timeshift': 'true', 
+            'epg_timeshift' : str(_getPvrIptvSimpleEpgShift(0)),
+            'channel_refresh_rate': '4', 
+            'epg_refresh_rate': '12', 
+            'limit_epg_per_batch': 'true', 
+            'epg_fetch_batch_limit': '10', 
+            'epg_fetch_batch_timeout': '10', 
+            'force_restart': 'false', 
+            'use_additional_m3u': '0', 
+            'use_additional_epg': '0', 
+            'configure_cron': 'false',
+        }
         for setting in DEFAULT_SETTING_VALUES.keys():
             val = _addon_.getSetting(setting)
             if not val:
                 _addon_.setSetting(setting, DEFAULT_SETTING_VALUES[setting])
         _addon_.setSetting("settings_init_done", "true")
+    
+    ## Get / set timeshift ##
+    _useIptvSimpleTimeshift_ = (_addon_.getSetting('use_iptv_simple_timeshift') == 'true')
+    if _useIptvSimpleTimeshift_:
+        _epgTimeshift_ = _getPvrIptvSimpleEpgShift(0)
+        timeshiftLoc = _addon_.getSetting('epg_timeshift')
+        if float(timeshiftLoc) != _epgTimeshift_:
+            _addon_.setSetting("epg_timeshift", str(_epgTimeshift_))
+    else:
+        _epgTimeshift_ = _addon_.getSetting('epg_timeshift')
+        if _epgTimeshift_:
+            _epgTimeshift_ = float(_epgTimeshift_)
+
+    ## Get refresh rates and limits and other settings as global vars ##
+    _epg_refresh_rate_ = (int(_addon_.getSetting('epg_refresh_rate')) * 60 * 60) - (10 * 60)
+    _limit_epg_per_batch_ = (_addon_.getSetting('limit_epg_per_batch') == 'true')
+    _epg_fetch_batch_limit_ = 999999
+    _epgLockTimeout_ = 0
+    if _limit_epg_per_batch_:
+        _epg_fetch_batch_limit_ = int(_addon_.getSetting('epg_fetch_batch_limit'))
+        _epgLockTimeout_ = (int(_addon_.getSetting('epg_fetch_batch_timeout')) * 60)
+    _channel_refresh_rate_ = (int(_addon_.getSetting('channel_refresh_rate')) * 60 * 60) - (10 * 60)
+    _force_restart_ = (_addon_.getSetting('force_restart') == 'true')
+    _use_additional_m3u_ = not (_addon_.getSetting('use_additional_m3u') == '0')
+    if _use_additional_m3u_:
+        # TODO: 1 - file, 2 - folder, 3 - pattern
+        _m3u_additional_ = xbmc.translatePath('special://home/o2tvgo-prgs-additional.m3u')
+    _use_additional_epg_ = not (_addon_.getSetting('use_additional_epg') == '0')
+    if _use_additional_epg_:
+        # TODO: 1 - file, 2 - folder, 3 - pattern
+        _xmltv_additional_filelist_pattern_ = xbmc.translatePath('special://home/rytecxmltv*.gz')
+        _xmltv_additional_ = xbmc.translatePath('special://home/merged_epg.xml')
+        _xmltv_additional_gzip_ = xbmc.translatePath('special://home/merged_epg.xml.gz')
+        _xmltv_test_output_file_ = xbmc.translatePath('special://home/merged_xml_test_out.xml')
+    _configure_cron_ = (_addon_.getSetting('configure_cron') == 'true')
+
+    ## END changes by @ch ##
 
     _device_id_ = _addon_.getSetting("device_id")
     if not _device_id_:
@@ -96,12 +175,12 @@ try:
             _device_id_ = first_device_id
         else:
             _device_id_ = _randomHex16()
-            ## START @ch ##
+            ## START changes by @ch ##
 #            if _device_name_:
 #                _device_id_ = _fromDeviceId()
 #            else:
 #                _device_id_ = _randomHex16()
-            ## END @ch ##
+            ## END changes by @ch ##
         _addon_.setSetting("device_id", _device_id_)
 
     ###############################################################################
@@ -177,53 +256,25 @@ try:
 
     ###############################################################################
     ## Globals ##
-    _addon_pvrIptvSimple_ = None
     _xmltv_ = xbmc.translatePath('special://home/o2tvgo-epg.xml')
     _xmltv_json_base_ = _profile_+'o2tvgo-epg-'
     _m3u_ = xbmc.translatePath('special://home/o2tvgo-prgs.m3u')
     _m3u_json_ = _profile_+'o2tvgo-prgs.json'
-    _m3u_additional_ = xbmc.translatePath('special://home/o2tvgo-prgs-additional.m3u')
-    _xmltv_additional_filelist_pattern_ = xbmc.translatePath('special://home/rytecxmltv*.gz')
-    _xmltv_additional_ = xbmc.translatePath('special://home/merged_epg.xml')
-    _xmltv_additional_gzip_ = xbmc.translatePath('special://home/merged_epg.xml.gz')
-    _xmltv_test_output_file_ = xbmc.translatePath('special://home/merged_xml_test_out.xml')
     _next_programme_ = _profile_+'o2tvgo-next_programme.json'
     _restart_ok_ = _profile_+'o2tvgo-restart_ok.txt'
     _save_epg_lock_file_ = _profile_+'o2tvgo-save_epg.lock'
-    _epg_shift_ba_winter_ = -1
-    _epg_shift_ba_summer_ = -2
-    _epg_refresh_rate_ = (12 * 60 * 60) - (30 * 60)
-    _epg_fetch_batch_limit_ = 10
-    _epgLockTimeout_ = (10 * 60)
-    _channel_refresh_rate_ = (4 * 60 * 60) - (30 * 60)
 
     ###############################################################################
     def _emptyFunction():
         logDbg("function was replaced with a dummy empty one")
 
-    def _getPvrIptvSimpleEpgShift():
-        global _addon_pvrIptvSimple_
-        shift = None
-        if not _addon_pvrIptvSimple_:
-            pluginDetails = _jsonRPC_._getAddonDetails("pvr.iptvsimple")
-            if pluginDetails:
-                #logNtc("Response: "+_toString(pluginDetails))
-                enabled = pluginDetails["enabled"]
-                if enabled:
-                    _addon_pvrIptvSimple_ = xbmcaddon.Addon('pvr.iptvsimple')
-                else:
-                    response = _jsonRPC_._setAddonEnabled("pvr.iptvsimple", True)
-                    if response:
-                        xbmc.sleep(1000)
-                        _addon_pvrIptvSimple_ = xbmcaddon.Addon('pvr.iptvsimple')
-        if _addon_pvrIptvSimple_:
-            shift = _addon_pvrIptvSimple_.getSetting("epgTimeShift")
-        if not shift:
-            msg = "Couldn't get pvr.iptvsimple plugin's epgTimeShift setting; using winter time in BA: "+_epg_shift_ba_winter_
-            notificationWarning(msg)
-            logErr(msg)
-            shift = _epg_shift_ba_winter_
-        return float(shift) * 60 * 60
+    def _openIptvSimpleClientSettings():
+        pluginDetails = _jsonRPC_._getAddonDetails("pvr.iptvsimple")
+        if pluginDetails:
+            enabled = pluginDetails["enabled"]
+            if enabled:
+                addon = xbmcaddon.Addon('pvr.iptvsimple')
+                addon.openSettings()
 
     def _fetchEpg(channel_key, hoursToLoad = 24, hoursToLoadFrom = None, forceFromTimestamp = None):
         global _o2tvgo_
@@ -305,7 +356,7 @@ try:
         if os.path.exists(_m3u_):
             lastModTimeM3U = os.path.getmtime(_m3u_)
             timestampNow = int(time.time())
-            if os.path.exists(_m3u_additional_):
+            if _use_additional_m3u_ and os.path.exists(_m3u_additional_):
                 lastModTimeM3UAdditional = os.path.getmtime(_m3u_additional_)
                 if (timestampNow - lastModTimeM3U) <= (_channel_refresh_rate_) and (lastModTimeM3U - lastModTimeM3UAdditional) >= 0:
                     logNtc("'"+_m3u_+"' file fresh enough and '"+_m3u_additional_+"' file old enough; not refreshing")
@@ -360,7 +411,7 @@ try:
                 logDbg("Channel "+channel.name+" ("+str(i+1)+"/"+str(numberOfChannels)+") is not broadcasting; skipping it")
                 iChannelJsonNumber += 1 # Otherwise the EPG guides get mixed up!
 
-        if os.path.exists(_m3u_additional_):
+        if _use_additional_m3u_ and os.path.exists(_m3u_additional_):
             additional_m3u = open(_m3u_additional_, 'r')
             if additional_m3u:
                 additional_prgs = additional_m3u.read()
@@ -427,7 +478,7 @@ try:
         if os.path.exists(_xmltv_):
             lastModTimeXML = os.path.getmtime(_xmltv_)
             timestampNow = int(time.time())
-            if os.path.exists(_m3u_additional_):
+            if _use_additional_m3u_ and os.path.exists(_m3u_additional_):
                 lastModTimeM3UAdditional = os.path.getmtime(_m3u_additional_)
                 if (timestampNow - lastModTimeXML) <= (_epg_refresh_rate_) and (lastModTimeXML - lastModTimeM3UAdditional) >= 0:
                     logNtc("'"+_xmltv_+"' file fresh enough and '"+_m3u_additional_+"' file old enough; not refreshing")
@@ -590,6 +641,8 @@ try:
             if restartPVR:
                 _restartPVR()
         _touch_saveEpgLockFile()
+        if not _use_additional_epg_:
+            return notification
         needToRestart = False
         et_tv, needToRestart = _merge_additional_epg_xml(et_tv)
         if needToRestart:
@@ -609,18 +662,19 @@ try:
         if os.path.exists(_restart_ok_):
             os.remove(_restart_ok_)
 
-        player = xbmc.Player()
-        isPlaying = player.isPlayingVideo()
-        if isPlaying:
-            playingNow = player.getPlayingFile()
-            if playingNow.startswith("pvr://"):
-                logNtc("Player is currently playing a pvr channel, not restarting")
-                return
+        if not _force_restart_:
+            player = xbmc.Player()
+            isPlaying = player.isPlayingVideo()
+            if isPlaying:
+                playingNow = player.getPlayingFile()
+                if playingNow.startswith("pvr://"):
+                    logNtc("Player is currently playing a pvr channel, not restarting")
+                    return
 
-        #dialog_id = xbmcgui.getCurrentWindowId()
-        #if dialog_id >= 10600 and dialog_id < 10800:
-            #xbmc.executebuiltin("ActivateWindow(home)")
-            #xbmc.sleep(1000)
+            #dialog_id = xbmcgui.getCurrentWindowId()
+            #if dialog_id >= 10600 and dialog_id < 10800:
+                #xbmc.executebuiltin("ActivateWindow(home)")
+                #xbmc.sleep(1000)
 
         pluginDetails = _jsonRPC_._getAddonDetails("pvr.iptvsimple")
         if pluginDetails:
@@ -760,7 +814,7 @@ try:
         return et_tv
 
     def _getAdditionalChannelNames():
-        if os.path.exists(_m3u_additional_):
+        if _use_additional_m3u_ and os.path.exists(_m3u_additional_):
             additional_m3u = open(_m3u_additional_, 'r')
             if additional_m3u:
                 additional_prgs = additional_m3u.read()
@@ -926,7 +980,7 @@ try:
         except TypeError:
             dateTime = datetime.datetime(*(time.strptime(sDateTime, "%Y%m%d %H:%M")[0:6]))
         timeDelta = (dateTime - datetime.datetime(1970, 1, 1))
-        epgShift = _getPvrIptvSimpleEpgShift()
+        epgShift = _epgTimeshift_ * 60 * 60
         timestamp = timeDelta.total_seconds() + epgShift
         return int(timestamp)
 
@@ -976,7 +1030,7 @@ try:
             logDbg([channelIndex, timestamp, epgKey, epg, startPos])
             return
 
-        timeShift = _getPvrIptvSimpleEpgShift()
+        timeShift = _epgTimeshift_ * 60 * 60
         timestampNow = int(time.time()) * 1000
         if timestampNow < epg["endTimestamp"] + timeShift:
             if timestampNow < epg["startTimestamp"] + timeShift:
@@ -1155,6 +1209,8 @@ try:
     playingcurrently=None
     starttimestamp=None
     channelindex=None
+    iptv_simple_settings=None
+
     params=get_params()
     assign_params(params)
 
@@ -1165,6 +1221,8 @@ try:
         notified = saveEPG()
     elif playfromepg:
         playChannelFromEpg(starttime, startdate, channelname, channelnumber, playingcurrently, starttimestamp, channelindex)
+    elif iptv_simple_settings:
+        _openIptvSimpleClientSettings()
     elif mergeepg:
         _merge_additional_epg_xml(None, True)
     elif pause:

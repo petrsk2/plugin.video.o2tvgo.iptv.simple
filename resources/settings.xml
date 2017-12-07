@@ -1,7 +1,32 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
+  <category label="30000">
     <setting label="30001" type="text" id="username" default=""/>
     <setting label="30002" type="text" id="password" option="hidden" enable="!eq(-1,)" default=""/>
-    <setting id="send_errors" type="bool" label="30025" default="false" />
+    <setting label="30025" id="send_errors" type="bool" default="false" visible="false" />
     <setting label="30005" id="device_id" type="text" enable="false" />
+  </category>
+  <category label="30100">
+    <setting label="30108" id="use_iptv_simple_timeshift" type="bool" default="true" />
+    <setting label="30109" id="epg_timeshift" type="slider" default="0" range="-12,1,12" option="float" enable="eq(-1,false)" />
+    <setting label="30101" id="channel_refresh_rate" type="slider" default="4" option="int" range="1,1,48" />
+    <setting label="30102" id="epg_refresh_rate" type="slider" default="12" option="int" range="1,1,48" />
+    <setting label="30112" id="limit_epg_per_batch" type="bool" default="true" />
+    <setting label="30113" id="epg_fetch_batch_limit" type="number" subsetting="true" default="10" visible="eq(-1,true)" />
+    <setting label="30114" id="epg_fetch_batch_timeout" type="number" subsetting="true" default="10" visible="eq(-2,true)" />
+    <setting label="30110" id="force_restart" type="bool" default="false" />
+    <setting type="sep" />
+    <setting label="30105" id="use_additional_m3u" type="enum" lvalues="30115|30116|30117|30118" default="0" enable="false" />
+    <setting label="30116" id="additional_m3u_location_file" subsetting="true" type="file" source="local" mask="*.m3u" visible="eq(-1,1)" />
+    <setting label="30117" id="additional_m3u_location_folder" subsetting="true" type="folder" source="local" visible="eq(-2,2)" />
+    <setting label="30118" id="additional_m3u_location_file_pattern" subsetting="true" type="text" visible="eq(-3,3)" />
+    <setting label="30105" id="use_additional_epg" type="enum" lvalues="30115|30119|30117|30118" default="0" enable="false" />
+    <setting label="30119" id="additional_epg_location_file" subsetting="true" type="file" source="local" mask="*.xml" visible="eq(-1,1)" />
+    <setting label="30117" id="additional_epg_location_folder" subsetting="true" type="folder" source="local" visible="eq(-2,2)" />
+    <setting label="30118" id="additional_epg_location_file_pattern" subsetting="true" type="text" visible="eq(-3,3)" />
+    <setting type="sep" />
+    <setting label="30107" id="configure_cron" type="bool" enable="System.HasAddon(service.cronxbmc)+false" />
+    <setting type="sep" />
+    <setting label="30111" id="iptv_simple_settings" type="action" option="close" action="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple/?iptv_simple_settings=1)" />
+  </category>
 </settings>

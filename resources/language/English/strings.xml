@@ -1,17 +1,37 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <strings>
-    <string id="30001">Username</string>
-    <string id="30002">Password</string>
-    <string id="30003">Invalid login</string>
-    <string id="30004">Device name</string>
-    <string id="30005">Device ID</string>
-    <string id="30006">Too many devices paired with this account</string>
-	<string id="30007">Channel is not broadcasting</string>
+  <!-- Settings BEGIN -->
+    <string id="30000">O2TV Go Authentication</string>
+      <string id="30001">Username</string>
+      <string id="30002">Password</string>
+      <string id="30005">Device ID</string>
+      <string id="30025">Report errors</string>
+    <string id="30100">PVR IPTV Simple Client support</string>
+      <string id="30101">Channel refresh rate (hours)</string>
+      <string id="30102">EPG refresh rate (hours)</string>
+      <string id="30103">Use additional playlist files?</string>
+      <string id="30105">Use additional EPG XML files?</string>
+      <string id="30107">Configure Cron plugin (service.cronxbmc) automatically?</string>
+      <string id="30108">Use PVR IPTV Simple Client EPG timeshift?</string>
+      <string id="30109">EPG Time Shift (hours)</string>
+      <string id="30110">Restart PVR IPTV Simple Client EPG even if an IPTV channel is playing?</string>
+      <string id="30111">Open PVR IPTV Simple Client settings</string>
+      <string id="30112">Limit number of channel EPG fetched in one batch?</string>
+      <string id="30113">Number of channel EPG to fetch in one batch</string>
+      <string id="30114">Minimum time (minutes) to wait after limit was reached</string>
+      <string id="30115">No</string>
+      <string id="30116">M3U File</string>
+      <string id="30117">Folder</string>
+      <string id="30118">File path pattern</string>
+      <string id="30119">XML File</string>
+  <!-- Settings END -->
+  <string id="30003">Invalid login</string>
+  <string id="30004">Device name</string>
+  <string id="30006">Too many devices paired with this account</string>
+  <string id="30007">Channel is not broadcasting</string>
 
-  	<string id="30025">Report errors</string>
-
-  	<string id="30500">Error ocurred during runtime.</string>
-  	<string id="30501">Allow reporting of errors?</string>
-  	<string id="30502">Error was sent to be repaired</string>
-  	<string id="30503">Failure report could not be sent</string>
+  <string id="30500">Error ocurred during runtime.</string>
+  <string id="30501">Allow reporting of errors?</string>
+  <string id="30502">Error was sent to be repaired</string>
+  <string id="30503">Failure report could not be sent</string>
 </strings>

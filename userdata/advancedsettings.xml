@@ -1,0 +1,20 @@
+<advancedsettings>
+  <useddsfanart>true</useddsfanart>
+  <cputempcommand>cputemp</cputempcommand>
+  <gputempcommand>gputemp</gputempcommand>
+  <samba>
+    <clienttimeout>30</clienttimeout>
+  </samba>
+  <network>
+    <disableipv6>true</disableipv6>
+  </network>
+  <loglevel>1</loglevel>
+  <debug>
+    <extralogging>false</extralogging>
+    <setextraloglevel>64,1024, 16384</setextraloglevel>
+    <showloginfo>false</showloginfo>
+  </debug>
+  <epg>
+    <lingertime>4320</lingertime>
+  </epg>
+</advancedsettings>
