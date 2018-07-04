@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <strings>
+  <!-- 300xx - Original strings and notifications from O2TV Go + Authentication related settings -->
+  <!-- 301xx - PVR IPTV Simple Client support related settings -->
+  <!-- 30200 - 30249 - Notification related settings -->
+  <!-- 30259 - 30299 - Notifications -->
+  <!-- 305xx - Errors (0-3: original strings and notifications from O2TV Go) -->
+  <!-- <string id=""></string> -->
   <!-- Settings BEGIN -->
     <string id="30000">O2TV Go Authentication</string>
       <string id="30001">Username</string>
@@ -24,14 +30,50 @@
       <string id="30117">Folder</string>
       <string id="30118">File path pattern</string>
       <string id="30119">XML File</string>
+    <string id="30200">Notifications</string>
+      <string id="30201">Start of refreshing of EPG / channel list</string>
+      <string id="30202">IPTV Simple Client PVR manager (re)start</string>
+      <string id="30203">Turn off all notifications</string>
   <!-- Settings END -->
   <string id="30003">Invalid login</string>
   <string id="30004">Device name</string>
   <string id="30006">Too many devices paired with this account</string>
   <string id="30007">Channel is not broadcasting</string>
 
+  <string id="30250">Couldn't get pvr.iptvsimple plugin's epgTimeShift setting; using default time shift: %d</string>
+  <string id="30251">Refreshing list of channels</string>
+  <string id="30252">Refreshing EPG</string>
+  <string id="30253">IPTV Simple Client PVR manager was restarted</string>
+  <string id="30254">IPTV Simple Client PVR manager was started</string>
+  <string id="30255">Starting past programme '%s' from beginning</string>
+  <string id="30256">Starting currently broadcasting programme '%s' from beginning</string>
+  <string id="30257">Another instance of '%s' is still running; not refreshing</string>
+  <string id="30258">Starting refreshing of EPG</string>
+  <string id="30259">Using previously downloaded EPG for channel '%s' (%d/%d)</string>
+  <string id="30260">Programme '%s' is in future!</string>
+  <string id="30261">Programme '%s' has not finished yet</string>
+  <string id="30262">Function '%s' started</string>
+  <string id="30263">'%s' file fresh enough and '%s' file old enough; not refreshing</string>
+  <string id="30264">'%s' file fresh enough; not refreshing</string>
+  <string id="30265">Starting refreshing of channels</string>
+  <string id="30266">'%s' file saved successfully</string>
+  <string id="30267">Reached limit of fetched channels in one batch (%d); stopping</string>
+  <string id="30268">Fetching and parsing EPG for channel '%s' (%d/%d)</string>
+  <string id="30269">'%s' file saved successfully with O2TV epg</string>
+  <string id="30270">'%s' file saved successfully with additional epg</string>
+  <string id="30271">No plugin related entries in file ('%s')</string>
+
   <string id="30500">Error ocurred during runtime.</string>
   <string id="30501">Allow reporting of errors?</string>
   <string id="30502">Error was sent to be repaired</string>
   <string id="30503">Failure report could not be sent</string>
+  <string id="30504">Couldn't parse timestamp from startDate, startTime</string>
+  <string id="30505">Couldn't get channel ID</string>
+  <string id="30506">EPG not found</string>
+  <string id="30507">No channels in channelListing</string>
+  <string id="30508">Could not open '%s' for reading</string>
+  <string id="30509">Could not open '%s' for writing</string>
+  <string id="30510">No channels in channel listing</string>
+  <string id="30511">No epg was fetched: %s</string>
+  <string id="30512">Log file ('%s') does not exist.</string>
 </strings>

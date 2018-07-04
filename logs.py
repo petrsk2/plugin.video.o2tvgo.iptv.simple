@@ -29,6 +29,9 @@ class Logs:
     def logNtc(self, msg):
         self.log(msg,level=xbmc.LOGNOTICE)
 
+    def logWarn(self, msg):
+        self.log(msg,level=xbmc.LOGWARNING)
+
     def logErr(self, msg):
         self.log(msg,level=xbmc.LOGERROR)
 

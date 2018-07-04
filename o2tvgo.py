@@ -175,6 +175,7 @@ class O2TVGO:
         if 'error' in j:
             error = j['error']
             if error == 'authentication-failed':
+                self._logs_.logErr(j)
                 raise AuthenticationError()
             else:
                 self._logs_.logErr(j)

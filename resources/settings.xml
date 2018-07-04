@@ -29,4 +29,9 @@
     <setting type="sep" />
     <setting label="30111" id="iptv_simple_settings" type="action" option="close" action="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple/?iptv_simple_settings=1)" />
   </category>
+  <category label="30200">
+    <setting label="30203" id="notification_disable_all" type="bool" default="false" />
+    <setting label="30201" id="notification_refreshing_started" type="bool" default="true" visible="eq(-1,false)" />
+    <setting label="30202" id="notification_pvr_restart" type="bool" default="true" visible="eq(-2,false)" />
+  </category>
 </settings>

@@ -93,3 +93,48 @@ class JsonRPC:
         else:
             self._logs_.logErr("No response from 'Addons.SetAddonEnabled' for "+strAction+" "+addonId)
             return False
+
+    def _getPVRChannels(self):
+        payload = {
+          "jsonrpc": "2.0",
+          "id":"1",
+          "method": "PVR.GetChannels",
+          "params": {
+            "channelgroupid": "alltv"
+          }
+        }
+        payloadJson = json.dumps(payload)
+        jsonResponse = xbmc.executeJSONRPC(payloadJson)
+        if jsonResponse:
+            response = json.loads(jsonResponse)
+
+        if "result" in response and "channels" in response["result"]:
+            return response["result"]["channels"]
+        return False
+
+    def _switchToChannel(self, channelID):
+        payload = {
+          "jsonrpc": "2.0",
+          "id":"1",
+          "method": "Player.Open",
+          "params": {
+            "item":{
+              "channelid": channelID
+            }
+          }
+        }
+        payloadJson = json.dumps(payload)
+        jsonResponse = xbmc.executeJSONRPC(payloadJson)
+        if jsonResponse:
+            responseDecoded = json.loads(jsonResponse)
+            if "error" in responseDecoded:
+                if "message" in responseDecoded["error"]:
+                    self._logs_.logErr("*** Could not channel ID "+str(channelID)+": "+responseDecoded["error"]["message"])
+                else:
+                    self._logs_.logErr("*** Could not play channel ID "+str(channelID))
+                self._logs_.logDbg('*** payloadJson: '+payloadJson)
+                self._logs_.logDbg('*** jsonResponse: '+jsonResponse)
+        else:
+            self._logs_.logErr("*** Could not channel ID "+str(channelID)+": No response from JSONRPC")
+            self._logs_.logDbg('*** payloadJson: '+payloadJson)
+            self._logs_.logDbg('*** jsonResponse: '+jsonResponse)
