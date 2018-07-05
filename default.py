@@ -13,7 +13,6 @@ import json
 import random
 from uuid import getnode as get_mac
 ## END: Copied from the original plugin by Štěpán Ort ##
-import codecs
 import datetime
 import time
 import gzip
@@ -116,7 +115,7 @@ try:
             'send_errors' : 'false', 
             'use_iptv_simple_timeshift': 'true', 
             'epg_timeshift' : str(_getPvrIptvSimpleEpgShift(0)),
-            'channel_refresh_rate': '4', 
+            'channel_refresh_rate': '3', 
             'epg_refresh_rate': '12', 
             'limit_epg_per_batch': 'true', 
             'epg_fetch_batch_limit': '10', 
@@ -700,7 +699,7 @@ try:
             _db_.deleteOldEpg(endBefore = olderThan)
             epgDict = _db_.getEpgRows(channel["id"])
             if not epgDict:
-                # if there was no file read (or the dictionary is empty by now), just use an empty dictionary #
+                # if there were no epg entries with for this channel, so just use an empty dictionary #
                 epgDict = {}
                 useDB = False
                 #logNtc(channel["name"]+" 2")
@@ -782,6 +781,7 @@ try:
                                 startOld = start, 
                                 epgIdOld = prg['epgId']
                         )
+                        # TODO: check if channel was updated #
                         _db_.updateChannel(channelID = channel["id"],  epgLastModTimestamp = int(time.time()))
                         _setSaveEpgLock()
                 else:
@@ -1059,25 +1059,8 @@ try:
         channelKey = channels["keysByIndex"][channelIndex]
         return channelIndex, channelKey
 
-    def getChannelIndexByKey(channelKey):
-        with open(_m3u_json_) as data_file:
-            channels = json.load(data_file)
-        channelIndex = channels["indexesByKey"][channelKey]
-        return channelIndex
-
-    def getChannelNameByKey(channelKey):
-        with open(_m3u_json_) as data_file:
-            channels = json.load(data_file)
-        channelName = channels["namesByKey"][channelKey]
-        return channelName
-
-    def getChannelKeyByName(channelName):
-        with open(_m3u_json_) as data_file:
-            channels = json.load(data_file)
-        channelKey = channels["keysByName"][channelName]
-        return channelKey
-
     def getChannelKeyByIndex(channelIndex):
+        return False #TODO: convert to DB if needed#
         with open(_m3u_json_) as data_file:
             channels = json.load(data_file)
         channelKey = channels["keysByIndex"][str(channelIndex)]
@@ -1085,6 +1068,7 @@ try:
         return channelKey
 
     def getChannelJsonNumberByIndex(channelIndex):
+        return False #TODO: convert to DB if needed#
         with open(_m3u_json_) as data_file:
             channels = json.load(data_file)
         if "chJsNumByIndex" in channels:
@@ -1406,6 +1390,7 @@ try:
         _test()
     else:
         dirListing()
+    _db_.closeDB()
 except Exception as ex:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     _logs_ = Logs(_scriptname_)

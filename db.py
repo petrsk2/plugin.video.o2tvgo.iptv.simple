@@ -3,12 +3,9 @@ import sqlite3,  re
 class O2tvgoDB:
     def __init__(self,  db_path, profile_path, plugin_path, _notification_disable_all_, _logs_):
         self.db_path = db_path
-        self.connection = sqlite3.connect(self.db_path)
-        self.connection.row_factory = sqlite3.Row
-        self.connection.text_factory = str
-        # enable foreign keys: #
-        self.connection.execute("PRAGMA foreign_keys = 1")
-        self.cursor = self.connection.cursor()
+        self.connection = False
+        self.cursor = False
+        self.connectDB()
         self.profile_path = profile_path
         self.plugin_path = plugin_path
         self._notification_disable_all_ = _notification_disable_all_
@@ -16,6 +13,9 @@ class O2tvgoDB:
         self.tablesOK = False
         
         self.check_tables()
+        
+    def __del__(self):
+        self.closeDB()
     
     def log(self, msg,  level):
         if self._logs_:
@@ -65,9 +65,26 @@ class O2tvgoDB:
                 print("LOG NOTIF ERROR: "+msg)
 
     def commit(self):
-        self.connection.commit()
+        if self.connection:
+            self.connection.commit()
+    
+    def connectDB(self):
+        if not self.connection:
+            self.connection = sqlite3.connect(self.db_path)
+            self.connection.row_factory = sqlite3.Row
+            self.connection.text_factory = str
+            # enable foreign keys: #
+            self.connection.execute("PRAGMA foreign_keys = 1")
+            self.cursor = self.connection.cursor()
+        
+    def closeDB(self):
+        if self.connection:
+            self.commit()
+            self.connection.close()
+            self.connection = False
     
     def cexec(self, sql, vals=None):
+        self.connectDB()
         try:
             if vals:
                 self.cursor.execute(sql, vals)
@@ -79,6 +96,14 @@ class O2tvgoDB:
             self.logWarn("Exception while executing a query ("+sql+"): "+str(ex))
     
     def cexecscript(self, sql, vals=None):
+        if not self.connection:
+            self.connection = sqlite3.connect(self.db_path)
+            self.connection.row_factory = sqlite3.Row
+            self.connection.text_factory = str
+            # enable foreign keys: #
+            self.connection.execute("PRAGMA foreign_keys = 1")
+            self.cursor = self.connection.cursor()
+        
         try:
             if vals:
                 self.cursor.executescript(sql,  vals)

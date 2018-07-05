@@ -13,17 +13,33 @@ O2TVGO_VIDEO = False
 class O2tvgoDBMini:
     def __init__(self,  db_path):
         self.db_path = db_path
-        self.connection = sqlite3.connect(self.db_path)
-        self.connection.row_factory = sqlite3.Row
-        self.connection.text_factory = str
-        # enable foreign keys: #
-        self.connection.execute("PRAGMA foreign_keys = 1")
-        self.cursor = self.connection.cursor()
+        self.connection = False
+        self.cursor = False
         
+    def __del__(self):
+        self.closeDB()
+    
     def commit(self):
-        self.connection.commit()
+        if self.connection:
+            self.connection.commit()
+    
+    def connectDB(self):
+        if not self.connection:
+            self.connection = sqlite3.connect(self.db_path)
+            self.connection.row_factory = sqlite3.Row
+            self.connection.text_factory = str
+            # enable foreign keys: #
+            self.connection.execute("PRAGMA foreign_keys = 1")
+            self.cursor = self.connection.cursor()
+        
+    def closeDB(self):
+        if self.connection:
+            self.commit()
+            self.connection.close()
+            self.connection = False
     
     def cexec(self, sql, vals=None):
+        self.connectDB()
         try:
             if vals:
                 self.cursor.execute(sql, vals)
@@ -33,6 +49,7 @@ class O2tvgoDBMini:
             return self.cursor.lastrowid
         except Exception as ex:
             xbmc.log("*** Exception while executing a query ("+sql+"): "+str(ex))
+            self.closeDB()
 
     def _getEpgColumns(self):
         return ["epgId", "start", "startTimestamp", "startEpgTime", "end", "endTimestamp", "endEpgTime", "title", "plot", "plotoutline", "fanart_image", "genre", "genres", "channelID",
@@ -123,12 +140,15 @@ class MyPlayer(xbmc.Player) :
         def onPlayBackEnded(self):
             xbmc.log('*** CALLBACK: onPlayBackEnded')
             _db_.setIsCurrentlyPlayingTo0()
+            _db_.closeDB()
+            
             if O2TVGO_VIDEO:
                 self._maybePlayNextProgramme()
 
         def onPlayBackStopped(self):
             xbmc.log('*** CALLBACK: onPlayBackStopped')
             _db_.setIsCurrentlyPlayingTo0()
+            _db_.closeDB()
             if O2TVGO_VIDEO:
                 self._maybePlayNextProgramme()
 
@@ -140,6 +160,7 @@ class MyPlayer(xbmc.Player) :
 
         def _maybePlayNextProgramme(self):
             nextProgramme = _db_.getNextEpg()
+            _db_.closeDB()
 
             if not nextProgramme:
                 return
@@ -220,12 +241,14 @@ class MyPlayer(xbmc.Player) :
                             xbmc.log('*** jsonResponse: '+jsonResponse)
 
             _db_.setIsNextProgrammeUsed()
+            _db_.closeDB()
 
 
 player=MyPlayer()
 
 def isPlayingVideoO2TVGO():
     currentlyPlaying = _db_.getCurrentlyPlayingEpg()
+    _db_.closeDB()
     if currentlyPlaying:
         #epgTimeshift = _db_.getLock("timeshift")
         #timeShift = epgTimeshift * 60 * 60
@@ -239,6 +262,7 @@ def isPlayingVideoO2TVGO():
             _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
         else:
             _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  position)
+        _db_.closeDB()
         return True
     playingNow = xbmc.Player().getPlayingFile()
     if not playingNow.endswith("m3u8"):
@@ -258,6 +282,7 @@ def isPlayingVideoO2TVGO():
         return False
 
     channelDict = _db_.getChannelByBaseName(sChannelBaseName)
+    _db_.closeDB()
     if channelDict:
         return True
     else:
@@ -287,3 +312,4 @@ while not monitor.abortRequested() and not xbmc.abortRequested:
     
 #    if not O2TVGO_VIDEO:
 #        _db_.setIsCurrentlyPlayingTo0()
+#        _db_.closeDB()
