@@ -100,15 +100,41 @@ def upgradeConfigsFromJsonToDb():
     return True
     
 if __name__ == '__main__':
-    db_path = "/home/kajo/.kodi/userdata/addon_data/plugin.video.o2tvgo.iptv.simple/o2tvgo_db.db"
-    _db_ = O2tvgoDB(db_path=db_path, dir_path="/home/kajo/.kodi/userdata/addon_data/plugin.video.o2tvgo.iptv.simple/",  plugin_path="",_notification_disable_all_=False, _logs_=None)
-    res = upgradeConfigsFromJsonToDb()
+    db_path = "/home/kajo/.kodi/userdata/addon_data/plugin.video.o2tvgo.iptv.simple/o2tvgo.db"
+    _db_ = O2tvgoDB(db_path=db_path, profile_path="/home/kajo/.kodi/userdata/addon_data/plugin.video.o2tvgo.iptv.simple/",  plugin_path="",_notification_disable_all_=False, _logs_=None)
+    
+#    res = upgradeConfigsFromJsonToDb()
+    
     print(_db_.getLock("lastRestart"))
     
-    timestampNow = int(time.time())
-    olderThan = (timestampNow -  (2*24*3600))
-    print(timestampNow,  olderThan)
-    _db_.deleteOldEpg(endBefore = olderThan)
+#    timestampNow = int(time.time())
+#    olderThan = (timestampNow -  (2*24*3600))
+#    print(timestampNow,  olderThan)
+#    _db_.deleteOldEpg(endBefore = olderThan)
+    
+    _epgLockTimeout_ = 10*60
+    locktime = _db_.getLock("saveEpgRunning")
+    if locktime == False:
+        print("Couldn't retrieve lock: saveEpgRunning")
+    else:
+        timestampNow = int(time.time())
+        if (timestampNow - locktime) >= (_epgLockTimeout_):
+            print("Epg lock is off")
+        else:
+            print("Epg lock is on")
+        print(str(timestampNow))
+        print(str(locktime))
+        print(str(timestampNow - locktime))
+        
+    print(_db_.getEpgRow(7497,  35))
+    
+#    res = _db_.cleanEpgDuplicates(doDelete = True)
+#    if res:
+#        if res["duplicates"]:
+#            print(len(res["duplicates"]))
+#        if res["toDelete"]:
+#            print(len(res["toDelete"]))
+#    print(res)
     
 #    print(_db_.getChannelRow(4))
 #    print(_db_.getChannels())

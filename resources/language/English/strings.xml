@@ -62,7 +62,7 @@
   <string id="30269">'%s' file saved successfully with O2TV epg</string>
   <string id="30270">'%s' file saved successfully with additional epg</string>
   <string id="30271">No plugin related entries in file ('%s')</string>
-
+  
   <string id="30500">Error ocurred during runtime.</string>
   <string id="30501">Allow reporting of errors?</string>
   <string id="30502">Error was sent to be repaired</string>
@@ -76,4 +76,5 @@
   <string id="30510">No channels in channel listing</string>
   <string id="30511">No epg was fetched: %s</string>
   <string id="30512">Log file ('%s') does not exist.</string>
+  <string id="30513">Requests library raised an exception: not performing another call for %s</string>
 </strings>

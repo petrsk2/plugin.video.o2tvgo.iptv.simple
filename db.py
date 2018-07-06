@@ -13,8 +13,12 @@ class O2tvgoDB:
         self.tablesOK = False
         
         self.check_tables()
+        self.cleanEpgDuplicates(doDelete = True)
+        self.cleanChannelDuplicates(doDelete = True)
         
     def __del__(self):
+        self.cleanEpgDuplicates(doDelete = True)
+        self.cleanChannelDuplicates(doDelete = True)
         self.closeDB()
     
     def log(self, msg,  level):
@@ -202,7 +206,7 @@ class O2tvgoDB:
         id = self.getChannelID(id, keyOld, keyCleanOld, nameOld,  True)
         if not id:
             return {}
-        self.cexec("SELECT id, \"key\", keyClean, name, epgLastModTimestamp FROM channels WHERE id = ?",  (id, ))
+        self.cexec("SELECT id, \"key\", keyClean, name, baseName, epgLastModTimestamp FROM channels WHERE id = ?",  (id, ))
         r = self.cursor.fetchone()
         if not r:
             if not silent:
@@ -213,7 +217,8 @@ class O2tvgoDB:
             "key": r[1], 
             "keyClean": r[2], 
             "name": r[3], 
-            "epgLastModTimestamp": r[4]
+            "baseName": r[4], 
+            "epgLastModTimestamp": r[5]
         }
     
     def getChannels(self):
@@ -261,15 +266,25 @@ class O2tvgoDB:
         channelID = self.getChannelID(channelID,  channelKey,  channelKeyClean,  channelName)
         if not channelID:
             return False
+        inp = {}
+        epgColumns = self._getEpgColumns()
+        for col in epgColumns:
+            loc = locals()
+            if col in loc and loc[col]:
+                inp[col] = loc[col]
+            elif col in self._getEpgColumnsInt():
+                inp[col] = 0
+            else:
+                inp[col] = ""
         id = self.cexec('''
             INSERT INTO epg (
                 epgId, "start", startTimestamp, startEpgTime, "end", endTimestamp, endEpgTime,
                 title, plot, plotoutline, fanart_image, genre, genres, channelID,
                 isCurrentlyPlaying, isNextProgramme, inProgressTime, isRecentlyWatched, isWatchLater)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                          (epgId, start, startTimestamp, startEpgTime, end, endTimestamp, endEpgTime,
-                            title, plot, plotoutline, fanart_image, genre, genres, channelID, 
-                            isCurrentlyPlaying, isNextProgramme, inProgressTime, isRecentlyWatched, isWatchLater)
+                        (inp["epgId"], inp["start"], inp["startTimestamp"], inp["startEpgTime"], inp["end"], inp["endTimestamp"], inp["endEpgTime"],
+                            inp["title"], inp["plot"], inp["plotoutline"], inp["fanart_image"], inp["genre"], inp["genres"], channelID,
+                            inp["isCurrentlyPlaying"], inp["isNextProgramme"], inp["inProgressTime"], inp["isRecentlyWatched"], inp["isWatchLater"])
         )
         return id
     
@@ -282,14 +297,14 @@ class O2tvgoDB:
         
         if not epgIdOld and not startOld and not endOld and not id:
             self.logWarn("No criteria for getting epg!")
-            return False, False
+            return False, channelID
         if id:
             self.cexec("SELECT id FROM epg WHERE id = ? AND channelID = ?",  (id, channelID))
             r = self.cursor.fetchone()
             if not r:
                 if not silent:
                     self.logWarn("No row matches the epg search criteria for: id = "+id+" (and channelID = "+channelID+")!")
-                return False, False
+                return False, channelID
         else:
             where = ""
             logWhere = ""
@@ -321,11 +336,11 @@ class O2tvgoDB:
             rowcount = len(all)
             if rowcount > 1:
                 self.logWarn("More than one row match the epg search criteria for: "+logWhere+"!")
-                return False, False
+                return False, channelID
             if rowcount == 0:
                 if not silent:
                     self.logWarn("No row matches the epg search criteria for: "+logWhere+"!")
-                return False, False
+                return False, channelID
             r = all[0]
             id = r[0]
         return id, channelID
@@ -333,6 +348,7 @@ class O2tvgoDB:
     def updateEpg(self, epgId=None, start=None, startTimestamp=None, startEpgTime=None, end=None, endTimestamp=None, endEpgTime=None, title=None, plot="", plotoutline="", fanart_image="", genre="", genres="", isCurrentlyPlaying=None, isNextProgramme=None, inProgressTime=None, isRecentlyWatched=None, isWatchLater=None, id=None, epgIdOld=None, startOld=None, endOld=None, channelID=None,  channelKey=None,  channelKeyClean=None,  channelName=None):
         if not self.tablesOK:
             return False
+        #def getEpgID(self, id=None, epgIdOld=None, startOld=None, endOld=None, channelID=None,  channelKey=None,  channelKeyClean=None,  channelName=None, silent=False):
         id, channelID = self.getEpgID(id, epgIdOld, startOld, endOld, channelID, channelKey, channelKeyClean, channelName,  True)
         if not channelID:
             return False
@@ -346,10 +362,10 @@ class O2tvgoDB:
                     inp[col] = loc[col]
                 elif col in epgRow and epgRow[col]:
                     inp[col] = epgRow[col]
-                elif col in {"isCurrentlyPlaying", "isNextProgramme", "isInProgress", "isRecentlyWatched", "isWatchLater"}:
+                elif col in self._getEpgColumnsInt():
                     inp[col] = 0
                 else:
-                    inp[col] = None
+                    inp[col] = ""
                     
             self.cexec('''
                 UPDATE epg
@@ -364,12 +380,82 @@ class O2tvgoDB:
             id = self.addEpg(epgId, start, startTimestamp, startEpgTime, end, endTimestamp, endEpgTime, title, plot, plotoutline, fanart_image, genre, genres, isCurrentlyPlaying, isNextProgramme, inProgressTime, isRecentlyWatched, isWatchLater, channelID)
         return id
     
+    def cleanEpgDuplicates(self, doDelete=False):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT epgId, COUNT(epgId) as cnt FROM epg GROUP BY epgId HAVING COUNT(epgId) > 1")
+        duplicates = {}
+        i = 0
+        for row in self.cursor:
+            duplicates[i] = {"epgId" : row["epgId"],  "cnt": row["cnt"]}
+            i += 1
+        if not duplicates:
+            return
+        toDelete = []
+        for i in duplicates:
+            epgId = duplicates[i]["epgId"]
+            cnt = duplicates[i]["cnt"]
+            limit = cnt - 1
+            self.cexec("SELECT id FROM epg WHERE epgId = ? LIMIT ?",  (epgId,  limit))
+            for row in self.cursor:
+                toDelete.append(row["id"])
+        if toDelete:
+            if doDelete:
+                self.logWarn("Deleting "+str(len(toDelete))+" epg duplicates from DB!")
+                for id in toDelete:
+                    self.cexec("DELETE FROM epg WHERE id = ?", (id, ))
+            return {
+                "duplicates": duplicates, 
+                "toDelete": toDelete
+            }
+        else:
+            self.logWarn("There were "+str(len(duplicates))+" duplicate epg IDs counted but no items in toDelete[]")
+            return {
+                "duplicates": duplicates
+            }
+    
+    def cleanChannelDuplicates(self, doDelete=False):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT \"key\", COUNT(\"key\") as cnt FROM channels GROUP BY \"key\" HAVING COUNT(\"key\") > 1")
+        duplicates = {}
+        i = 0
+        for row in self.cursor:
+            duplicates[i] = {"key" : row["key"],  "cnt": row["cnt"]}
+            i += 1
+        if not duplicates:
+            return
+        toDelete = []
+        for i in duplicates:
+            key = duplicates[i]["key"]
+            cnt = duplicates[i]["cnt"]
+            limit = cnt - 1
+            self.cexec("SELECT id FROM channels WHERE \"key\" = ? LIMIT ?",  (key,  limit))
+            for row in self.cursor:
+                toDelete.append(row["id"])
+        if toDelete:
+            if doDelete:
+                self.logWarn("Deleting "+str(len(toDelete))+" channel duplicates from DB!")
+                for id in toDelete:
+                    self.cexec("DELETE FROM channels WHERE id = ?", (id, ))
+            return {
+                "duplicates": duplicates, 
+                "toDelete": toDelete
+            }
+        else:
+            self.logWarn("There were "+str(len(duplicates))+" duplicate channel keys counted but no items in toDelete[]")
+            return {
+                "duplicates": duplicates
+            }
+
     def deleteOldEpg(self, endBefore):
         return self.cexec("DELETE FROM epg WHERE \"end\" < ?",  (endBefore, ))
     
     def _getEpgColumns(self):
         return ["epgId", "start", "startTimestamp", "startEpgTime", "end", "endTimestamp", "endEpgTime", "title", "plot", "plotoutline", "fanart_image", "genre", "genres", "channelID",
                   "isCurrentlyPlaying", "isNextProgramme", "inProgressTime", "isRecentlyWatched", "isWatchLater"]
+    def _getEpgColumnsInt(self):
+        return ["epgId", "start", "startTimestamp", "startEpgTime", "end", "endTimestamp", "endEpgTime", "isCurrentlyPlaying", "isNextProgramme", "inProgressTime", "isRecentlyWatched", "isWatchLater", "channelID"]
     
     def getEpgRow(self, id, channelID):
         if not self.tablesOK:
@@ -382,8 +468,12 @@ class O2tvgoDB:
                 "id": row["id"]
             }
             for col in epgColumns:
-                if row[col] or row[col] == 0 or row[col] == '0':
+                if row[col]:
                     epgDict[col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[col] = 0
+                else:
+                    epgDict[col] = ""
             return epgDict
 
     def getEpgRowByStart(self, start, channelID):
@@ -399,6 +489,10 @@ class O2tvgoDB:
             for col in epgColumns:
                 if row[col]:
                     epgDict[col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[col] = 0
+                else:
+                    epgDict[col] = ""
             return epgDict
         # No luck #
         self.cexec("SELECT * FROM epg where \"start\" < ? AND \"end\" > ? AND channelID = ?",  (start, start, channelID))
@@ -411,6 +505,10 @@ class O2tvgoDB:
             for col in epgColumns:
                 if row[col]:
                     epgDict[col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[col] = 0
+                else:
+                    epgDict[col] = ""
             return epgDict
         return {}
 
@@ -429,18 +527,25 @@ class O2tvgoDB:
             for col in epgColumns:
                 if row[col]:
                     epgDict[index][col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[index][col] = 0
+                else:
+                    epgDict[index][col] = ""
             i += 1
         return epgDict
     
     def setLock(self, name, val=None):
         if not self.tablesOK:
             return False
-        if val:
-            self.cexec("INSERT OR REPLACE INTO lock (name, val) VALUES (?, ?)",  (name, val))
+        lockVal = self.getLock(name=name, defaultVal=-1)
+        if not val:
+            val = 0
+        if lockVal == -1:
+            self.cexec("INSERT INTO lock (name, val) VALUES (?, ?)",  (name, val))
         else:
-            self.cexec("INSERT OR REPLACE INTO lock (name, val) VALUES (?, ?)",  (name, 0 ))
+            self.cexec("UPDATE lock SET val = ? WHERE name = ?",  (val, name))
     
-    def getLock(self, name,  silent=True):
+    def getLock(self, name,  silent=True, defaultVal=0):
         if not self.tablesOK:
             return False
         self.cexec("SELECT val FROM lock WHERE name = ?",  (name, ))
@@ -448,11 +553,11 @@ class O2tvgoDB:
         rowcount = len(all)
         if rowcount > 1:
             self.logWarn("More than one row match the lock search criteria for: name = "+name+"!")
-            return 0
+            return defaultVal
         if rowcount == 0:
             if not silent:
                 self.logWarn("No row matches the channel lock criteria for: name = "+name+"!")
-            return 0
+            return defaultVal
         r = all[0]
         val = r[0]        
         return val

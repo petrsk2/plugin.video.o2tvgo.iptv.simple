@@ -27,7 +27,7 @@ except ImportError:
     from urlparse import urlparse, parse_qs
 import xml.etree.ElementTree as etree
 
-from o2tvgo import O2TVGO,  LiveChannel,  AuthenticationError, ChannelIsNotBroadcastingError,  TooManyDevicesError
+from o2tvgo import O2TVGO,  LiveChannel,  AuthenticationError, ChannelIsNotBroadcastingError,  TooManyDevicesError, RequestError
 from logs import Logs
 from jsonrpc import JsonRPC
 from db import O2tvgoDB
@@ -42,7 +42,7 @@ try:
     ## Globals ##
     _addon_ = xbmcaddon.Addon('plugin.video.o2tvgo.iptv.simple')
     _scriptname_ = _addon_.getAddonInfo('name')
-    _logs_ = Logs(_scriptname_)
+    _logs_ = Logs("O2TVGO/IPTVSimple")
     _jsonRPC_ = JsonRPC(_logs_)
     _addon_pvrIptvSimple_ = None
     _useIptvSimpleTimeshift_ = True
@@ -151,6 +151,8 @@ try:
     _limit_epg_per_batch_ = (_addon_.getSetting('limit_epg_per_batch') == 'true')
     _epg_fetch_batch_limit_ = 999999
     _epgLockTimeout_ = 0
+    _requestErrorTimeoutMin_ = 15
+    _requestErrorTimeout_ = _requestErrorTimeoutMin_*60
     if _limit_epg_per_batch_:
         _epg_fetch_batch_limit_ = int(_addon_.getSetting('epg_fetch_batch_limit'))
         _epgLockTimeout_ = (int(_addon_.getSetting('epg_fetch_batch_timeout')) * 60)
@@ -230,6 +232,10 @@ try:
             except TooManyDevicesError:
                 d = xbmcgui.Dialog()
                 d.notification(_scriptname_, _lang_(30006), xbmcgui.NOTIFICATION_ERROR)
+                return None
+            except RequestError:
+                _db_.setLock("saveEpgRunning", time.time()+_requestErrorTimeout_)
+                d.notification(_scriptname_, _lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes", xbmcgui.NOTIFICATION_ERROR)
                 return None
         return channels
 
@@ -492,11 +498,16 @@ try:
             _restartPVR()
 
     def _is_saveEpg_running():
+        # TODO: check if this is OK - seems not #
         locktime = _db_.getLock("saveEpgRunning")
+        if locktime == False:
+            logDbg("Couldn't retrieve lock: saveEpgRunning")
+            return False
         timestampNow = int(time.time())
         if (timestampNow - locktime) >= (_epgLockTimeout_):
             return False
         else:
+            logDbg("Epg lock is on: locked "+str(int(timestampNow - locktime))+"s ago")
             return True
 
     def _setSaveEpgLock():
@@ -655,48 +666,62 @@ try:
             msg = _lang_(30510)
             notificationError(msg,  True,  forceNotifications,  dialogDebug)
             return False
-        #logNtc(_toString(channelsDict))
         _setSaveEpgLock()
         
         notificationInfo(_lang_(30252),  False,  forceNotifications,  notification)
         
         numberOfChannels = len(channelsDict)
+        #logDbg("saveEPG() - checkpoint 1")
         i = 0
         et_tv = etree.Element("tv")
-        while i < numberOfChannels or str(i) in channelsDict:
-            key = str(i)
-            if not key in channelsDict:
-                i += 1
-                numberOfChannels += 1
-                continue
+        #logDbg("saveEPG() - checkpoint 2")
+        #logDbg(channelsDict)
+        #logDbg(str(numberOfChannels))
+        #while i < numberOfChannels or str(i) in channelsDict:
+        for key in channelsDict:
+            #logDbg("saveEPG() - checkpoint 3b")
+#            key = str(j)
+#            if not key in channelsDict:
+#                i += 1
+#                numberOfChannels += 1
+#                logDbg("saveEPG() - checkpoint 3e0, key: "+key)
+#                continue
+            #logDbg("saveEPG() - checkpoint 3 - channel "+channelsDict[key]["name"])
             channel = channelsDict[key]
             et_channel = etree.SubElement(et_tv, "channel", id=channel["channel_key"])
             etree.SubElement(et_channel, "display-name", lang="sk").text = channel["name"]
             i += 1
+            #logDbg("saveEPG() - checkpoint 3e")
         _setSaveEpgLock()
+        #logDbg("saveEPG() - checkpoint 4")
 
         iFetchedChannel = 0
         i = 0
         errorOccured = False
-        while i < numberOfChannels or str(i) in channelsDict:
-            key = str(i)
-            if not key in channelsDict:
-                logDbg("No channel at position "+str(i+1)+"/"+str(numberOfChannels)+"; skipping it")
-                i += 1
-                continue
+        #while i < numberOfChannels or str(i) in channelsDict:
+        for key in channelsDict:
+#            key = str(j)
+#            if not key in channelsDict:
+#                logDbg("No channel at position "+str(i+1)+"/"+str(numberOfChannels)+"; skipping it")
+#                i += 1
+#                continue
             channel = channelsDict[key]
+            #logDbg("Starting refresh of EPG for channel "+channel["name"])
             # read the db and delete old entries #
             epgDict = None
             useFromTimestamp = False
             useDB = False
             timestampNow = int(time.time())
             
-            if (timestampNow - channel["epgLastModTimestamp"]) <= _epg_refresh_rate_:
+            if not channel["epgLastModTimestamp"]:
+                useDB = True
+            elif (timestampNow - channel["epgLastModTimestamp"]) <= _epg_refresh_rate_:
                 # use this instead of asking for the data #
                 useDB = True
                 #logNtc(channel["name"]+" 1")
             olderThan = (timestampNow -  (2*24*3600))
             _db_.deleteOldEpg(endBefore = olderThan)
+            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 1")
             epgDict = _db_.getEpgRows(channel["id"])
             if not epgDict:
                 # if there were no epg entries with for this channel, so just use an empty dictionary #
@@ -713,7 +738,9 @@ try:
                     #logNtc(channel["name"]+" 3")
                     #logNtc("Age of latest programme in seconds: "+str(int(maxTimestamp) - int(timestampNow)))
                     #logNtc("Latest programme: "+str(maxTimestamp)+" => "+_toString(epgDict[maxTimestamp]))
+            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 2")
             _setSaveEpgLock()
+            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 3")
 
             if useDB:
                 msg = _lang_(30259) % (channel["name"], i+1, numberOfChannels)
@@ -730,15 +757,31 @@ try:
                 forceFromTimestamp = None
                 if useFromTimestamp:
                     forceFromTimestamp = maxTimestamp
-                epg = _fetchEpg(channel["channel_key"], 2 * 24, 2 * 24, forceFromTimestamp)
+                try:
+                    epg = _fetchEpg(channel["channel_key"], 2 * 24, 2 * 24, forceFromTimestamp)
+                except RequestError:
+                    _db_.setLock("saveEpgRunning", time.time()+_requestErrorTimeout_)
+                    notificationError(_lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes")
+                    return True
                 if epg:
                     for prg in epg:
                         epg_id = prg['epgId']
-                        prg_detail = _fetchEpgDetail(epg_id)
+                        try:
+                            prg_detail = _fetchEpgDetail(epg_id)
+                        except RequestError:
+                            _db_.setLock("saveEpgRunning", time.time()+_requestErrorTimeout_)
+                            notificationError(_lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes")
+                            return True
                         if prg_detail['picture']:
-                            fanart_image = "http://app.o2tv.cz" + prg_detail['picture']
+                            if prg_detail['picture'].startswith("http://app.o2tv.cz") or prg_detail['picture'].startswith("http://www.o2tv.cz"):
+                                fanart_image = prg_detail['picture']
+                            else:
+                                fanart_image = "http://app.o2tv.cz" + prg_detail['picture']
                         elif prg['picture']:
-                            fanart_image = "http://app.o2tv.cz" + prg['picture']
+                            if prg['picture'].startswith("http://app.o2tv.cz") or prg['picture'].startswith("http://www.o2tv.cz"):
+                                fanart_image = prg['picture']
+                            else:
+                                fanart_image = "http://app.o2tv.cz" + prg['picture']
                         else:
                             fanart_image = ""
                         genres = None
@@ -746,7 +789,11 @@ try:
                         if prg_detail['genres']:
                             genres = prg_detail['genres']
                             genre = "/".join(genres).replace('/', ' / ')
-                            genres = json.dumps(genres), 
+                            genreDB = genre
+                            genresDB = json.dumps(genres)
+                        else:
+                            genreDB = ""
+                            genresDB = ""
                         start = _timestampishToTimestamp(prg['startTimestamp'])
                         epgDict[start] = {
                                 "start": start,
@@ -763,6 +810,8 @@ try:
                                 "genres": genres,
                                 "genre": genre
                         }
+                        #logDbg("Updating EPG of channel "+channel["name"])
+                        #logDbg(epgDict[start])
                         _db_.updateEpg(
                                 start = start,
                                 end = _timestampishToTimestamp(prg['endTimestamp']),
@@ -775,14 +824,14 @@ try:
                                 fanart_image = fanart_image,
                                 plotoutline = prg['shortDescription'],
                                 plot = prg_detail['longDescription'],
-                                genres = genres,
-                                genre = genre, 
+                                genres = genresDB,
+                                genre = genreDB, 
                                 channelID = channel["id"], 
                                 startOld = start, 
                                 epgIdOld = prg['epgId']
                         )
                         # TODO: check if channel was updated #
-                        _db_.updateChannel(channelID = channel["id"],  epgLastModTimestamp = int(time.time()))
+                        _db_.updateChannel(id = channel["id"],  epgLastModTimestamp = int(time.time()))
                         _setSaveEpgLock()
                 else:
                     msg = _lang_(30511) % _toString(epg)
@@ -799,11 +848,11 @@ try:
                 prg = epgDict[epgDictKey]
                 et_programme = etree.SubElement(et_tv, "programme", channel=channel["channel_key"])
                 if "startEpgTime" in prg:
-                    et_programme.set("start", prg['startEpgTime'])
-                    et_programme.set("stop", prg['endEpgTime'])
+                    et_programme.set("start", str(prg['startEpgTime']))
+                    et_programme.set("stop", str(prg['endEpgTime']))
                 else:
-                    et_programme.set("start", _timestampishToEpgTime(prg['startTimestamp']))
-                    et_programme.set("stop", _timestampishToEpgTime(prg['endTimestamp']))
+                    et_programme.set("start", str(_timestampishToEpgTime(prg['startTimestamp'])))
+                    et_programme.set("stop", str(_timestampishToEpgTime(prg['endTimestamp'])))
                 etree.SubElement(et_programme, "title", lang="sk").text = prg['title']
                 etree.SubElement(et_programme, "sub-title", lang="sk").text = prg['plotoutline']
                 etree.SubElement(et_programme, "desc", lang="sk").text = prg['plot']
@@ -814,7 +863,8 @@ try:
                     etree.SubElement(et_programme, "category", lang="sk").text = prg["genre"]
                 _setSaveEpgLock()
             i += 1
-        ## END: while
+        ## END: for
+        # logDbg("saveEPG() 2")
         
         if errorOccured:
             return False

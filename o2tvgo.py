@@ -44,7 +44,11 @@ class LiveChannel:
               "streamingProtocol":"HLS"}
             headers = _COMMON_HEADERS
             cookies = { "access_token": access_token, "deviceId": self._o2tv.device_id }
-            req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
+            try:
+                req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
+            except Exception as e:
+                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                raise RequestError()
             jsonData = req.json()
             access_token = None
             if 'statusMessage' in jsonData:
@@ -77,7 +81,11 @@ class LiveChannel:
               "streamingProtocol":"HLS"}
             headers = _COMMON_HEADERS
             cookies = { "access_token": access_token, "deviceId": self._o2tv.device_id }
-            req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
+            try:
+                req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
+            except Exception as e:
+                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                raise RequestError()
             jsonData = req.json()
             access_token = None
             if 'statusMessage' in jsonData:
@@ -111,7 +119,11 @@ class LiveChannel:
             #logDbg(params);
             headers = _COMMON_HEADERS
             cookies = { "access_token": access_token, "deviceId": self._o2tv.device_id }
-            req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
+            try:
+                req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
+            except Exception as e:
+                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                raise RequestError()
             jsonData = req.json()
             access_token = None
             if 'statusMessage' in jsonData:
@@ -133,6 +145,9 @@ class AuthenticationError(BaseException):
     pass
 
 class TooManyDevicesError(BaseException):
+    pass
+
+class RequestError(BaseException):
     pass
 
 class O2TVGO:
@@ -190,7 +205,11 @@ class O2TVGO:
         access_token = self.access_token
         headers = _COMMON_HEADERS
         cookies = { "access_token": access_token, "deviceId": self.device_id }
-        req = requests.get('http://app.o2tv.cz/sws/subscription/settings/subscription-configuration.json', headers=headers, cookies=cookies)
+        try:
+            req = requests.get('http://app.o2tv.cz/sws/subscription/settings/subscription-configuration.json', headers=headers, cookies=cookies)
+        except Exception as e:
+            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            raise RequestError()
         j = req.json()
         if 'errorMessage' in j:
             errorMessage = j['errorMessage']
@@ -228,7 +247,11 @@ class O2TVGO:
                 "deviceType": "MOBILE",
                 "liveTvStreamingProtocol":"HLS",
                 "offer": offer}
-            req = requests.get('http://app.o2tv.cz/sws/server/tv/channels.json', params=params, headers=headers, cookies=cookies)
+            try:
+                req = requests.get('http://app.o2tv.cz/sws/server/tv/channels.json', params=params, headers=headers, cookies=cookies)
+            except Exception as e:
+                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                raise RequestError()
             j = req.json()
             if 'error' in j:
                 self._logs_.logErr(j)
@@ -239,7 +262,12 @@ class O2TVGO:
                     live = item['liveTvPlayable']
                     if live:
                         channel_key = self._logs_._toString(item['channelKey'])
-                        logo = 'http://app.o2tv.cz' + self._logs_._toString(item['logo'])
+                        logoUrl = self._logs_._toString(item['logo'])
+                        if logoUrl.startswith("http://www.o2tv.cz") or logoUrl.startswith("http://app.o2tv.cz"):
+                            logo = logoUrl
+                        else:
+                            logo = "http://www.o2tv.cz" + logoUrl
+
                         name = self._logs_._toString(item['channelName'])
                         weight = item['weight']
                         self._live_channels[channel_key] = LiveChannel(self, channel_key, name, logo, weight)
@@ -252,14 +280,22 @@ class O2TVGO:
                     "channelKey": self._live_channels.keys(),
                     "limit": 30,
                     "offset": offset}
-                req = requests.get('http://www.o2tv.cz/mobile/tv/channels.json', params=params, headers=headers)
+                try:
+                    req = requests.get('http://www.o2tv.cz/mobile/tv/channels.json', params=params, headers=headers)
+                except Exception as e:
+                    self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                    raise RequestError()
                 j = req.json()
                 items = j['channels']['items']
                 for item in items:
                     item = item['channel']
                     channel_key = self._logs_._toString(item['channelKey'])
                     if 'logoUrl' in item.keys():
-                        logo_url = "http://www.o2tv.cz" + item['logoUrl']
+                        logoUrl = item['logoUrl']
+                        if logoUrl.startswith("http://www.o2tv.cz") or logoUrl.startswith("http://app.o2tv.cz"):
+                            logo_url = logoUrl
+                        else:
+                            logo_url = "http://www.o2tv.cz" + logoUrl
                         self._live_channels[channel_key].logo_url = logo_url
                 offset += 30
                 total_count = j['channels']['totalCount']
@@ -299,7 +335,11 @@ class O2TVGO:
             "fromTimestamp": fromTimestamp,
             "toTimestamp": toTimestamp}
         #logDbg(_toString(params))
-        req = requests.get('http://app.o2tv.cz/sws/server/tv/channel-programs.json', params=params, headers=headers, cookies=cookies)
+        try:
+            req = requests.get('http://app.o2tv.cz/sws/server/tv/channel-programs.json', params=params, headers=headers, cookies=cookies)
+        except Exception as e:
+            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            raise RequestError()
         j = req.json()
         return j
 
@@ -320,7 +360,11 @@ class O2TVGO:
         cookies = { "access_token": access_token, "deviceId": self.device_id }
         params = {"language": "slo",
             "epgId": self.epg_id}
-        req = requests.get('http://app.o2tv.cz/sws/server/tv/epg-detail.json', params=params, headers=headers, cookies=cookies)
+        try:
+            req = requests.get('http://app.o2tv.cz/sws/server/tv/epg-detail.json', params=params, headers=headers, cookies=cookies)
+        except Exception as e:
+            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            raise RequestError()
         j = req.json()
         j.items()
         return j
@@ -342,6 +386,10 @@ class O2TVGO:
             "contentDataType": "EPG",
             "contentId": epgId,
             "watchPosition": watchPosition}
-        req = requests.get('http://app.o2tv.cz/sws/subscription/content/add-visited.json', params=params, headers=headers, cookies=cookies)
+        try:
+            req = requests.get('http://app.o2tv.cz/sws/subscription/content/add-visited.json', params=params, headers=headers, cookies=cookies)
+        except Exception as e:
+            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            raise RequestError()
         j = req.json()
         return j
