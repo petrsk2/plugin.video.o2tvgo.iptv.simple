@@ -1,3 +1,7 @@
+2018-07-08 [1.0.4]
+* Migrating from JSON data files to SQLite3 DB
+* Added In progress, Recently Watched, Favourites plugin menu items
+* Added preparation for Watch later menu item
 2017-09-25 [1.0.2]
 * Adding timeshift functionality: possibility to play a programme from the past two days as a video (with time seeking support)
 2017-02-19 [1.0.1]

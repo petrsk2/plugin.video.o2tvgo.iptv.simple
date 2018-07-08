@@ -4,12 +4,26 @@
 import json,  xbmc,  sys
 
 class JsonRPC:
-    def __init__(self,  logging = None,  scriptname = None):
-        if logging:
-            self._logs_ = logging
+    def __init__(self,  _logs_ = None,  scriptname="O2TVGO/IPTVSimple", logId="O2TVGO/IPTVSimple"):
+        if _logs_:
+            self._logs_ = _logs_
         else:
             from logs import Logs
-            self._logs_ = Logs(scriptname)
+            self._logs_ = Logs(scriptname, logId)
+        self.logIdSuffix = "/jsonrpc.py/JsonRPC"
+        self.scriptname = scriptname
+        self.logId = logId
+
+    def log(self, msg):
+        return self._logs_.log(msg=msg, idSuffix=self.logIdSuffix)
+    def logDbg(self, msg):
+        return self._logs_.logDbg(msg=msg, idSuffix=self.logIdSuffix)
+    def logNtc(self, msg):
+        return self._logs_.logNtc(msg=msg, idSuffix=self.logIdSuffix)
+    def logWarn(self, msg):
+        return self._logs_.logWarn(msg=msg, idSuffix=self.logIdSuffix)
+    def logErr(self, msg):
+        return self._logs_.logErr(msg=msg, idSuffix=self.logIdSuffix)
 
     def _getAddons(self):
         payloadGetAddons = {
@@ -25,13 +39,13 @@ class JsonRPC:
                 if "result" in responseGetAddons and responseGetAddons["result"] and "addons" in responseGetAddons["result"] and responseGetAddons["result"]["addons"]:
                     return responseGetAddons["result"]["addons"]
                 else:
-                    self._logs_.logErr("Invalid response from 'Addons.GetAddonDetails': "+self._logs_._toString(responseGetAddons))
+                    self.logErr("Invalid response from 'Addons.GetAddonDetails': "+self._logs_._toString(responseGetAddons))
                     return False
             except:
-                self._logs_.logErr("An exception was raised by 'Addons.GetAddonDetails': "+self._logs_._toString(sys.exc_info()[0]))
+                self.logErr("An exception was raised by 'Addons.GetAddonDetails': "+self._logs_._toString(sys.exc_info()[0]))
                 return False
         else:
-            self._logs_.logErr("No response from 'Addons.GetAddonDetails'")
+            self.logErr("No response from 'Addons.GetAddonDetails'")
             return False
 
     def _getAddonDetails(self, addonId):
@@ -52,13 +66,13 @@ class JsonRPC:
                 if "result" in responseGetDetails and responseGetDetails["result"] and "addon" in responseGetDetails["result"] and responseGetDetails["result"]["addon"] and "enabled" in responseGetDetails["result"]["addon"]:
                     return responseGetDetails["result"]["addon"]
                 else:
-                    self._logs_.logErr("Invalid response from 'Addons.GetAddonDetails' for "+addonId+": "+self._logs_._toString(responseGetDetails))
+                    self.logErr("Invalid response from 'Addons.GetAddonDetails' for "+addonId+": "+self._logs_._toString(responseGetDetails))
                     return False
             except:
-                self._logs_.logErr("An exception was raised by 'Addons.GetAddonDetails' for "+addonId+": "+self._logs_._toString(sys.exc_info()[0]))
+                self.logErr("An exception was raised by 'Addons.GetAddonDetails' for "+addonId+": "+self._logs_._toString(sys.exc_info()[0]))
                 return False
         else:
-            self._logs_.logErr("No response from 'Addons.GetAddonDetails' for "+addonId)
+            self.logErr("No response from 'Addons.GetAddonDetails' for "+addonId)
             return False
 
     def _setAddonEnabled(self, addonId, enabled = True):
@@ -83,15 +97,15 @@ class JsonRPC:
                 if "result" in responseSetEnabled and self._logs_._toString(responseSetEnabled["result"]).lower() == "ok":
                     return True
                 else:
-                    self._logs_.logErr("Invalid response from 'Addons.SetAddonEnabled' for "+strAction+" "+addonId+": "+self._logs_._toString(responseSetEnabled))
+                    self.logErr("Invalid response from 'Addons.SetAddonEnabled' for "+strAction+" "+addonId+": "+self._logs_._toString(responseSetEnabled))
                     if "result" in responseSetEnabled:
-                        self._logs_.logNtc(self._logs_._toString(responseSetEnabled["result"]))
+                        self.logNtc(self._logs_._toString(responseSetEnabled["result"]))
                     return False
             except:
-                self._logs_.logErr("An exception was raised by 'Addons.SetAddonEnabled' for "+strAction+" "+addonId+": "+self._logs_._toString(sys.exc_info()[0]))
+                self.logErr("An exception was raised by 'Addons.SetAddonEnabled' for "+strAction+" "+addonId+": "+self._logs_._toString(sys.exc_info()[0]))
                 return False
         else:
-            self._logs_.logErr("No response from 'Addons.SetAddonEnabled' for "+strAction+" "+addonId)
+            self.logErr("No response from 'Addons.SetAddonEnabled' for "+strAction+" "+addonId)
             return False
 
     def _getPVRChannels(self):
@@ -129,12 +143,12 @@ class JsonRPC:
             responseDecoded = json.loads(jsonResponse)
             if "error" in responseDecoded:
                 if "message" in responseDecoded["error"]:
-                    self._logs_.logErr("*** Could not channel ID "+str(channelID)+": "+responseDecoded["error"]["message"])
+                    self.logErr("Could not channel ID "+str(channelID)+": "+responseDecoded["error"]["message"])
                 else:
-                    self._logs_.logErr("*** Could not play channel ID "+str(channelID))
-                self._logs_.logDbg('*** payloadJson: '+payloadJson)
-                self._logs_.logDbg('*** jsonResponse: '+jsonResponse)
+                    self.logErr("Could not play channel ID "+str(channelID))
+                self.logDbg('payloadJson: '+payloadJson)
+                self.logDbg('jsonResponse: '+jsonResponse)
         else:
-            self._logs_.logErr("*** Could not channel ID "+str(channelID)+": No response from JSONRPC")
-            self._logs_.logDbg('*** payloadJson: '+payloadJson)
-            self._logs_.logDbg('*** jsonResponse: '+jsonResponse)
+            self.logErr("Could not channel ID "+str(channelID)+": No response from JSONRPC")
+            self.logDbg('payloadJson: '+payloadJson)
+            self.logDbg('jsonResponse: '+jsonResponse)

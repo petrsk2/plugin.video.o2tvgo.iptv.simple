@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os,  json,  re, traceback,  sys,  time
-#from jsonrpc import JsonRPC
 from db import O2tvgoDB
 _m3u_json_= "/home/kajo/.kodi/userdata/addon_data/plugin.video.o2tvgo.iptv.simple/o2tvgo-prgs.json."
 _xmltv_json_base_ = "/home/kajo/.kodi/userdata/addon_data/plugin.video.o2tvgo.iptv.simple/o2tvgo-epg-"

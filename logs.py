@@ -4,12 +4,16 @@
 import xbmc,  xbmcgui,  xbmcaddon
 
 class Logs:
-    def __init__(self, scriptname = None):
+    def __init__(self, scriptname = None,  id = None):
         if scriptname:
             self.scriptname = scriptname
         else:
             _addon_ = xbmcaddon.Addon('plugin.video.o2tvgo.iptv.simple')
             self.scriptname = _addon_.getAddonInfo('name')
+        if id:
+            self.id = id
+        else:
+            self.id = ""
     
     def _toString(self, text):
         if type(text).__name__=='unicode':
@@ -18,22 +22,22 @@ class Logs:
             output = str(text)
         return output
 
-    def log(self, msg, level=xbmc.LOGDEBUG):
+    def log(self, msg, level=xbmc.LOGDEBUG, idSuffix = ""):
         if type(msg).__name__=='unicode':
             msg = msg.encode('utf-8')
-        xbmc.log("[%s] %s"%(self.scriptname,msg.__str__()), level)
+        xbmc.log("[%s] %s"%(self.id+idSuffix,msg.__str__()), level)
 
-    def logDbg(self, msg):
-        self.log(msg,level=xbmc.LOGDEBUG)
+    def logDbg(self, msg, idSuffix = ""):
+        self.log(msg=msg,level=xbmc.LOGDEBUG, idSuffix=idSuffix)
 
-    def logNtc(self, msg):
-        self.log(msg,level=xbmc.LOGNOTICE)
+    def logNtc(self, msg, idSuffix = ""):
+        self.log(msg=msg,level=xbmc.LOGNOTICE, idSuffix=idSuffix)
 
-    def logWarn(self, msg):
-        self.log(msg,level=xbmc.LOGWARNING)
+    def logWarn(self, msg, idSuffix = ""):
+        self.log(msg=msg,level=xbmc.LOGWARNING, idSuffix=idSuffix)
 
-    def logErr(self, msg):
-        self.log(msg,level=xbmc.LOGERROR)
+    def logErr(self, msg, idSuffix = ""):
+        self.log(msg=msg,level=xbmc.LOGERROR, idSuffix=idSuffix)
 
     def notificationInfo(self, msg, sound = False):
         d = xbmcgui.Dialog()

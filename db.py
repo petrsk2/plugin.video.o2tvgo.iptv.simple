@@ -1,7 +1,7 @@
 import sqlite3,  re
 
 class O2tvgoDB:
-    def __init__(self,  db_path, profile_path, plugin_path, _notification_disable_all_, _logs_):
+    def __init__(self,  db_path, profile_path, plugin_path, _notification_disable_all_, _logs_, scriptname="O2TVGO/IPTVSimple", logId="O2TVGO/IPTVSimple"):
         self.db_path = db_path
         self.connection = False
         self.cursor = False
@@ -9,7 +9,15 @@ class O2tvgoDB:
         self.profile_path = profile_path
         self.plugin_path = plugin_path
         self._notification_disable_all_ = _notification_disable_all_
-        self._logs_ = _logs_
+        if _logs_:
+            self._logs_ = _logs_
+        else:
+            from logs import Logs
+            self._logs_ = Logs(scriptname, logId)
+        self.logIdSuffix = "/db.py/O2tvgoDB"
+        self.scriptname = scriptname
+        self.logId = logId
+        
         self.tablesOK = False
         
         self.check_tables()
@@ -21,52 +29,52 @@ class O2tvgoDB:
         self.cleanChannelDuplicates(doDelete = True)
         self.closeDB()
     
-    def log(self, msg,  level):
+    def log(self, msg):
         if self._logs_:
-            return self._logs_.log(msg,  level)
+            return self._logs_.log(msg,  idSuffix=self.logIdSuffix)
         else:
-            print("LOG: "+msg)
+            print("["+self.logId+self.logIdSuffix+"] LOG: "+msg)
     def logDbg(self, msg):
         if self._logs_:
-            return self._logs_.logDbg(msg)
+            return self._logs_.logDbg(msg, idSuffix=self.logIdSuffix)
         else:
-            print("LOG DBG: "+msg)
+            print("["+self.logId+self.logIdSuffix+"] LOG DBG: "+msg)
     def logNtc(self, msg):
         if self._logs_:
-            return self._logs_.logNtc(msg)
+            return self._logs_.logNtc(msg, idSuffix=self.logIdSuffix)
         else:
-            print("LOG NTC: "+msg)
+            print("["+self.logId+self.logIdSuffix+"] LOG NTC: "+msg)
     def logWarn(self, msg):
         if self._logs_:
-            return self._logs_.logWarn(msg)
+            return self._logs_.logWarn(msg, idSuffix=self.logIdSuffix)
         else:
-            print("LOG WARN: "+msg)
+            print("["+self.logId+self.logIdSuffix+"] LOG WARN: "+msg)
     def logErr(self, msg):
         if self._logs_:
-            return self._logs_.logErr(msg)
+            return self._logs_.logErr(msg, idSuffix=self.logIdSuffix)
         else:
-            print("LOG ERR: "+msg)
+            print("["+self.logId+self.logIdSuffix+"] LOG ERR: "+msg)
     def notificationInfo(self, msg, sound = False,  force = False, dialog = True):
         self.logNtc(msg)
         if (dialog and not self._notification_disable_all_) or force:
             if self._logs_:
                 return self._logs_.notificationInfo(msg,  sound)
             else:
-                print("LOG NOTIF INFO: "+msg)
+                print("["+self.logId+self.logIdSuffix+"] LOG NOTIF INFO: "+msg)
     def notificationWarning(self, msg, sound = True,  force = False, dialog = True):
         self.logWarn(msg)
         if (dialog and not self._notification_disable_all_) or force:
             if self._logs_:
                 return self._logs_.notificationWarning(msg,  sound)
             else:
-                print("LOG NOTIF WARNING: "+msg)
+                print("["+self.logId+self.logIdSuffix+"] LOG NOTIF WARNING: "+msg)
     def notificationError(self, msg, sound = True,  force = False, dialog = True):
         self.logErr(msg)
         if (dialog and not self._notification_disable_all_) or force:
             if self._logs_:
                 return self._logs_.notificationError(msg,  sound)
             else:
-                print("LOG NOTIF ERROR: "+msg)
+                print("["+self.logId+self.logIdSuffix+"] LOG NOTIF ERROR: "+msg)
 
     def commit(self):
         if self.connection:
@@ -191,7 +199,8 @@ class O2tvgoDB:
             rowcount = len(all)
             if rowcount > 1:
                 self.logWarn("More than one row match the channel search criteria for: "+logWhere+"!")
-                return False
+                self.cleanChannelDuplicates(doDelete=True)
+                return self.getChannelID(id, keyOld, keyCleanOld, nameOld, silent)
             elif rowcount == 0:
                 if not silent:
                     self.logWarn("No row matches the channel search criteria for: key = "+logWhere+"!")
@@ -336,7 +345,8 @@ class O2tvgoDB:
             rowcount = len(all)
             if rowcount > 1:
                 self.logWarn("More than one row match the epg search criteria for: "+logWhere+"!")
-                return False, channelID
+                self.cleanEpgDuplicates(doDelete=True)
+                return self.getEpgID(id, epgIdOld, startOld, endOld, channelID,  channelKey,  channelKeyClean,  channelName, silent)
             if rowcount == 0:
                 if not silent:
                     self.logWarn("No row matches the epg search criteria for: "+logWhere+"!")
@@ -345,6 +355,11 @@ class O2tvgoDB:
             id = r[0]
         return id, channelID
     
+    def removeEpgFromList(self, epgRowID, listColumn):
+        if not self.tablesOK:
+            return False
+        self.cexec("UPDATE epg SET "+listColumn+" = ? WHERE id = ?", (0, epgRowID))
+        
     def updateEpg(self, epgId=None, start=None, startTimestamp=None, startEpgTime=None, end=None, endTimestamp=None, endEpgTime=None, title=None, plot="", plotoutline="", fanart_image="", genre="", genres="", isCurrentlyPlaying=None, isNextProgramme=None, inProgressTime=None, isRecentlyWatched=None, isWatchLater=None, id=None, epgIdOld=None, startOld=None, endOld=None, channelID=None,  channelKey=None,  channelKeyClean=None,  channelName=None):
         if not self.tablesOK:
             return False
@@ -448,6 +463,74 @@ class O2tvgoDB:
                 "duplicates": duplicates
             }
 
+    def cleanLockDuplicates(self, doDelete=False):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT \"name\", COUNT(\"name\") as cnt FROM lock GROUP BY \"name\" HAVING COUNT(\"name\") > 1")
+        duplicates = {}
+        i = 0
+        for row in self.cursor:
+            duplicates[i] = {"name" : row["name"],  "cnt": row["cnt"]}
+            i += 1
+        if not duplicates:
+            return
+        toDelete = []
+        for i in duplicates:
+            name = duplicates[i]["name"]
+            cnt = duplicates[i]["cnt"]
+            limit = cnt - 1
+            self.cexec("SELECT id FROM lock WHERE \"name\" = ? LIMIT ?",  (name,  limit))
+            for row in self.cursor:
+                toDelete.append(row["id"])
+        if toDelete:
+            if doDelete:
+                self.logWarn("Deleting "+str(len(toDelete))+" lock duplicates from DB!")
+                for id in toDelete:
+                    self.cexec("DELETE FROM lock WHERE id = ?", (id, ))
+            return {
+                "duplicates": duplicates, 
+                "toDelete": toDelete
+            }
+        else:
+            self.logWarn("There were "+str(len(duplicates))+" duplicate lock names counted but no items in toDelete[]")
+            return {
+                "duplicates": duplicates
+            }
+
+    def cleanFavouriteDuplicates(self, doDelete=False):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT \"title_pattern\", COUNT(\"title_pattern\") as cnt FROM favourites GROUP BY \"title_pattern\" HAVING COUNT(\"title_pattern\") > 1")
+        duplicates = {}
+        i = 0
+        for row in self.cursor:
+            duplicates[i] = {"title_pattern" : row["title_pattern"],  "cnt": row["cnt"]}
+            i += 1
+        if not duplicates:
+            return
+        toDelete = []
+        for i in duplicates:
+            title_pattern = duplicates[i]["title_pattern"]
+            cnt = duplicates[i]["cnt"]
+            limit = cnt - 1
+            self.cexec("SELECT id FROM favourites WHERE \"title_pattern\" = ? LIMIT ?",  (title_pattern,  limit))
+            for row in self.cursor:
+                toDelete.append(row["id"])
+        if toDelete:
+            if doDelete:
+                self.logWarn("Deleting "+str(len(toDelete))+" favourites duplicates from DB!")
+                for id in toDelete:
+                    self.cexec("DELETE FROM favourites WHERE id = ?", (id, ))
+            return {
+                "duplicates": duplicates, 
+                "toDelete": toDelete
+            }
+        else:
+            self.logWarn("There were "+str(len(duplicates))+" duplicate favourites names counted but no items in toDelete[]")
+            return {
+                "duplicates": duplicates
+            }
+
     def deleteOldEpg(self, endBefore):
         return self.cexec("DELETE FROM epg WHERE \"end\" < ?",  (endBefore, ))
     
@@ -534,6 +617,129 @@ class O2tvgoDB:
             i += 1
         return epgDict
     
+    def getEpgRowsFavourites(self):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT * FROM favourites")
+        favouriteTitleQuery = ""
+        for row in self.cursor:
+            if len(favouriteTitleQuery) > 0:
+                favouriteTitleQuery += " OR "
+            favouriteTitleQuery += "e.title LIKE '%"+row["title_pattern"]+"%'"
+        if len(favouriteTitleQuery) == 0:
+            return {}
+        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE "+favouriteTitleQuery)
+        i = 0
+        epgDict = {}
+        epgColumns = self._getEpgColumns()
+        for row in self.cursor:
+            index = row["start"]
+            epgDict[index] = {
+                "id": row["id"],
+                "channelName": row["channelName"]
+            }
+            for col in epgColumns:
+                if row[col]:
+                    epgDict[index][col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[index][col] = 0
+                else:
+                    epgDict[index][col] = ""
+            i += 1
+        return epgDict
+    
+    def getEpgRowsRecentlyWatched(self):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isRecentlyWatched = ? ORDER BY \"start\" DESC",  (1, ))
+        i = 0
+        epgDict = {}
+        epgColumns = self._getEpgColumns()
+        for row in self.cursor:
+            index = row["start"]
+            epgDict[index] = {
+                "id": row["id"],
+                "channelName": row["channelName"]
+            }
+            for col in epgColumns:
+                if row[col]:
+                    epgDict[index][col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[index][col] = 0
+                else:
+                    epgDict[index][col] = ""
+            i += 1
+        return epgDict
+    
+    def getEpgRowsWatchLater(self):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isWatchLater = ? ORDER BY \"start\" DESC",  (1, ))
+        i = 0
+        epgDict = {}
+        epgColumns = self._getEpgColumns()
+        for row in self.cursor:
+            index = row["start"]
+            epgDict[index] = {
+                "id": row["id"],
+                "channelName": row["channelName"]
+            }
+            for col in epgColumns:
+                if row[col]:
+                    epgDict[index][col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[index][col] = 0
+                else:
+                    epgDict[index][col] = ""
+            i += 1
+        return epgDict
+    
+    def getEpgRowsInProgress(self):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.inProgressTime > ? ORDER BY \"start\" DESC",  (0, ))
+        i = 0
+        epgDict = {}
+        epgColumns = self._getEpgColumns()
+        for row in self.cursor:
+            index = row["start"]
+            epgDict[index] = {
+                "id": row["id"],
+                "channelName": row["channelName"]
+            }
+            for col in epgColumns:
+                if row[col]:
+                    epgDict[index][col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[index][col] = 0
+                else:
+                    epgDict[index][col] = ""
+            i += 1
+        return epgDict
+    
+    def getEpgChannelRow(self, epgRowID):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT e.*, ch.name AS channelName, ch.key AS channelKey FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.id = ?",  (epgRowID, ))
+        i = 0
+        epgDict = {}
+        epgColumns = self._getEpgColumns()
+        for row in self.cursor:
+            epgDict = {
+                "id": row["id"],
+                "channelName": row["channelName"],
+                "channelKey": row["channelKey"]
+            }
+            for col in epgColumns:
+                if row[col]:
+                    epgDict[col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[col] = 0
+                else:
+                    epgDict[col] = ""
+            i += 1
+        return epgDict
+    
     def setLock(self, name, val=None):
         if not self.tablesOK:
             return False
@@ -553,10 +759,11 @@ class O2tvgoDB:
         rowcount = len(all)
         if rowcount > 1:
             self.logWarn("More than one row match the lock search criteria for: name = "+name+"!")
-            return defaultVal
+            self.cleanLockDuplicates(doDelete=True)
+            return self.getLock(name, silent, defaultVal)
         if rowcount == 0:
             if not silent:
-                self.logWarn("No row matches the channel lock criteria for: name = "+name+"!")
+                self.logWarn("No row matches the lock search criteria for: name = "+name+"!")
             return defaultVal
         r = all[0]
         val = r[0]        
@@ -567,3 +774,59 @@ class O2tvgoDB:
         
     def clearNextProgramme(self):
         self.cexec("UPDATE epg SET isNextProgramme = ? WHERE isNextProgramme = ?",  (0, 1))
+    def getFavourites(self):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT * FROM favourites ORDER BY title_pattern ASC")
+        favDict = {}
+        for row in self.cursor:
+            index = row["id"]
+            title = row["title_pattern"]
+            if not row["title_pattern"]:
+                title = ""
+            favDict[index] = {
+                "id": row["id"],
+                "title_pattern": title
+            }
+        return favDict
+    
+    def getFavourite(self, rowID=None, title_pattern=None, silent=True):
+        if not self.tablesOK or (not rowID and not title_pattern):
+            return False
+        if title_pattern:
+            self.cexec("SELECT title_pattern FROM favourites WHERE title_pattern = ?",  (title_pattern, ))
+        else:
+            self.cexec("SELECT title_pattern FROM favourites WHERE id = ?",  (rowID, ))
+        all = self.cursor.fetchall()
+        rowcount = len(all)
+        if rowcount > 1:
+            self.logWarn("More than one row match the favourites search criteria for: id = "+str(rowID)+"!")
+            self.cleanFavouriteDuplicates(doDelete=True)
+            return self.getFavourite(rowID)
+        if rowcount == 0:
+            if not silent:
+                self.logWarn("No row matches the favourites search criteria for: id = "+str(rowID)+"!")
+            return False
+        r = all[0]
+        val = r[0]        
+        return val
+    
+    def addFavourite(self, title_pattern):
+        if not self.tablesOK:
+            return False
+        val = self.getFavourite(title_pattern=title_pattern)
+        if val:
+            return True
+        else:
+            self.cexec("INSERT INTO favourites (title_pattern) VALUES (?)",  (title_pattern, ))
+    
+    def updateFavourite(self, rowID, title_pattern):
+        if not self.tablesOK:
+            return False
+        self.cexec("UPDATE favourites SET title_pattern = ? WHERE id = ?",  (title_pattern, rowID))
+        self.cleanFavouriteDuplicates(doDelete=True)
+
+    def removeFavourite(self, rowID):
+        if not self.tablesOK:
+            return False
+        self.cexec("DELETE FROM favourites WHERE id = ?",  (rowID, ))

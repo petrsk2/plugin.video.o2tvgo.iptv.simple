@@ -21,12 +21,31 @@ _COMMON_HEADERS = { "X-Nangu-App-Version" : "Android#3.5.31.0-release",
 # Kanál
 class LiveChannel:
 
-    def __init__(self, o2tv, channel_key, name, logo_url, weight):
+    def __init__(self, o2tv, channel_key, name, logo_url, weight, _logs_=None, scriptname="O2TVGO/IPTVSimple", logId="O2TVGO/IPTVSimple"):
         self._o2tv = o2tv
         self.channel_key = channel_key
         self.name = name
         self.weight = weight
         self.logo_url = logo_url
+        self.logIdSuffix = "/o2tvgo.py/LiveChannel"
+        self.scriptname = scriptname
+        self.logId = logId
+        if _logs_:
+            self._logs_ = _logs_
+        else:
+            from logs import Logs
+            self._logs_ = Logs(scriptname, logId)
+
+    def log(self, msg):
+        return self._logs_.log(msg=msg, idSuffix=self.logIdSuffix)
+    def logDbg(self, msg):
+        return self._logs_.logDbg(msg=msg, idSuffix=self.logIdSuffix)
+    def logNtc(self, msg):
+        return self._logs_.logNtc(msg=msg, idSuffix=self.logIdSuffix)
+    def logWarn(self, msg):
+        return self._logs_.logWarn(msg=msg, idSuffix=self.logIdSuffix)
+    def logErr(self, msg):
+        return self._logs_.logErr(msg=msg, idSuffix=self.logIdSuffix)
 
     def url(self):
         if not self._o2tv.access_token:
@@ -47,7 +66,7 @@ class LiveChannel:
             try:
                 req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
             except Exception as e:
-                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                self.logErr("Exception was thrown in requests.get(): "+str(e))
                 raise RequestError()
             jsonData = req.json()
             access_token = None
@@ -84,7 +103,7 @@ class LiveChannel:
             try:
                 req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
             except Exception as e:
-                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                self.logErr("Exception was thrown in requests.get(): "+str(e))
                 raise RequestError()
             jsonData = req.json()
             access_token = None
@@ -122,7 +141,7 @@ class LiveChannel:
             try:
                 req = requests.get('http://app.o2tv.cz/sws/server/streaming/uris.json', params=params, headers=headers, cookies=cookies)
             except Exception as e:
-                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                self.logErr("Exception was thrown in requests.get(): "+str(e))
                 raise RequestError()
             jsonData = req.json()
             access_token = None
@@ -152,7 +171,7 @@ class RequestError(BaseException):
 
 class O2TVGO:
 
-    def __init__(self, device_id, username, password, logs = None,  scriptname = None):
+    def __init__(self, device_id, username, password, _logs_ = None,  scriptname = None, logId="O2TVGO/IPTVSimple"):
         self.username = username
         self.password = password
         self._live_channels = {}
@@ -167,11 +186,25 @@ class O2TVGO:
         self.forceFromTimestamp = None
         self.hoursToLoadFrom = None
         self.hoursToLoad = None
-        if logs:
-            self._logs_ = logs
+        self.logIdSuffix = "/o2tvgo.py/O2TVGO"
+        self.scriptname = scriptname
+        self.logId = logId
+        if _logs_:
+            self._logs_ = _logs_
         else:
             from logs import Logs
-            self._logs_ = Logs(scriptname)
+            self._logs_ = Logs(scriptname, logId)
+
+    def log(self, msg):
+        return self._logs_.log(msg=msg, idSuffix=self.logIdSuffix)
+    def logDbg(self, msg):
+        return self._logs_.logDbg(msg=msg, idSuffix=self.logIdSuffix)
+    def logNtc(self, msg):
+        return self._logs_.logNtc(msg=msg, idSuffix=self.logIdSuffix)
+    def logWarn(self, msg):
+        return self._logs_.logWarn(msg=msg, idSuffix=self.logIdSuffix)
+    def logErr(self, msg):
+        return self._logs_.logErr(msg=msg, idSuffix=self.logIdSuffix)
 
     def refresh_access_token(self):
         if not self.username or not self.password:
@@ -190,10 +223,10 @@ class O2TVGO:
         if 'error' in j:
             error = j['error']
             if error == 'authentication-failed':
-                self._logs_.logErr(j)
+                self.logErr(j)
                 raise AuthenticationError()
             else:
-                self._logs_.logErr(j)
+                self.logErr(j)
                 raise Exception(error)
         self.access_token = j["access_token"]
         self.expires_in = j["expires_in"]
@@ -208,7 +241,7 @@ class O2TVGO:
         try:
             req = requests.get('http://app.o2tv.cz/sws/subscription/settings/subscription-configuration.json', headers=headers, cookies=cookies)
         except Exception as e:
-            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            self.logErr("Exception was thrown in requests.get(): "+str(e))
             raise RequestError()
         j = req.json()
         if 'errorMessage' in j:
@@ -217,7 +250,7 @@ class O2TVGO:
             if statusMessage == 'unauthorized-device':
                 raise TooManyDevicesError()
             else:
-                self._logs_.logErr(j)
+                self.logErr(j)
                 raise Exception(errorMessage)
         self.subscription_code = self._logs_._toString(j["subscription"])
         self.offer = j["billingParams"]["offers"]
@@ -250,11 +283,11 @@ class O2TVGO:
             try:
                 req = requests.get('http://app.o2tv.cz/sws/server/tv/channels.json', params=params, headers=headers, cookies=cookies)
             except Exception as e:
-                self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                self.logErr("Exception was thrown in requests.get(): "+str(e))
                 raise RequestError()
             j = req.json()
             if 'error' in j:
-                self._logs_.logErr(j)
+                self.logErr(j)
             purchased_channels = j['purchasedChannels']
             items = j['channels']
             for channel_id, item in items.iteritems():
@@ -270,7 +303,7 @@ class O2TVGO:
 
                         name = self._logs_._toString(item['channelName'])
                         weight = item['weight']
-                        self._live_channels[channel_key] = LiveChannel(self, channel_key, name, logo, weight)
+                        self._live_channels[channel_key] = LiveChannel(self, channel_key, name, logo, weight, self._logs_, self.scriptname, self.logId)
             done = False
             offset = 0
             while not done:
@@ -283,7 +316,7 @@ class O2TVGO:
                 try:
                     req = requests.get('http://www.o2tv.cz/mobile/tv/channels.json', params=params, headers=headers)
                 except Exception as e:
-                    self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+                    self.logErr("Exception was thrown in requests.get(): "+str(e))
                     raise RequestError()
                 j = req.json()
                 items = j['channels']['items']
@@ -328,7 +361,7 @@ class O2TVGO:
             hoursToLoad = 24
         toTimestamp = ( timestampNow + 3600 * hoursToLoad ) * 1000
         if fromTimestamp >= toTimestamp:
-            self._logs_.logErr("O2TVGO.channel_epg(): fromTimestamp >= toTimestamp ("+str(fromTimestamp)+" >= "+str(toTimestamp)+")")
+            self.logErr("O2TVGO.channel_epg(): fromTimestamp >= toTimestamp ("+str(fromTimestamp)+" >= "+str(toTimestamp)+")")
             return False
         params = {"language": "slo",
             "channelKey": self.channel_key,
@@ -338,7 +371,7 @@ class O2TVGO:
         try:
             req = requests.get('http://app.o2tv.cz/sws/server/tv/channel-programs.json', params=params, headers=headers, cookies=cookies)
         except Exception as e:
-            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            self.logErr("Exception was thrown in requests.get(): "+str(e))
             raise RequestError()
         j = req.json()
         return j
@@ -363,7 +396,7 @@ class O2TVGO:
         try:
             req = requests.get('http://app.o2tv.cz/sws/server/tv/epg-detail.json', params=params, headers=headers, cookies=cookies)
         except Exception as e:
-            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            self.logErr("Exception was thrown in requests.get(): "+str(e))
             raise RequestError()
         j = req.json()
         j.items()
@@ -389,7 +422,7 @@ class O2TVGO:
         try:
             req = requests.get('http://app.o2tv.cz/sws/subscription/content/add-visited.json', params=params, headers=headers, cookies=cookies)
         except Exception as e:
-            self._logs_.logErr("Exception was thrown in requests.get(): "+str(e))
+            self.logErr("Exception was thrown in requests.get(): "+str(e))
             raise RequestError()
         j = req.json()
         return j

@@ -42,8 +42,9 @@ try:
     ## Globals ##
     _addon_ = xbmcaddon.Addon('plugin.video.o2tvgo.iptv.simple')
     _scriptname_ = _addon_.getAddonInfo('name')
-    _logs_ = Logs("O2TVGO/IPTVSimple")
-    _jsonRPC_ = JsonRPC(_logs_)
+    _logId_ = "O2TVGO/IPTVSimple"
+    _logs_ = Logs(scriptname=_scriptname_, id=_logId_)
+    _jsonRPC_ = JsonRPC(_logs_=_logs_, scriptname=_scriptname_, logId=_logId_)
     _addon_pvrIptvSimple_ = None
     _useIptvSimpleTimeshift_ = True
     _epgTimeshift_ = 0
@@ -206,11 +207,11 @@ try:
     _handle_ = int(sys.argv[1])
     _baseurl_ = sys.argv[0]
 
-    _o2tvgo_ = O2TVGO(_device_id_, _username_, _password_, _logs_, _scriptname_)
+    _o2tvgo_ = O2TVGO(_device_id_, _username_, _password_, _logs_, _scriptname_, _logId_)
     
     _db_path_ = _profile_+'o2tvgo.db'
     _addon_path_ = _addon_.getAddonInfo('path')+"/"
-    _db_ = O2tvgoDB(_db_path_, _profile_, _addon_path_, _notification_disable_all_, _logs_)
+    _db_ = O2tvgoDB(_db_path_, _profile_, _addon_path_, _notification_disable_all_, _logs_, _scriptname_, _logId_)
     
     _db_.setLock("timeshift", _epgTimeshift_)
 
@@ -250,7 +251,7 @@ try:
         global _password_
         _password_ = _addon_.getSetting("password")
         global _o2tvgo_
-        _o2tvgo_ = O2TVGO(_device_id_, _username_, _password_, _logs_, _scriptname_)
+        _o2tvgo_ = O2TVGO(_device_id_, _username_, _password_, _logs_, _scriptname_, _logId_)
 
 
     ## END: Copied from the original plugin by Štěpán Ort ##
@@ -259,26 +260,26 @@ try:
     ## Logging, debugging, messages - just redeclaring the methods from Logging so I don't have to rewrite every occurence
     def _toString(text):
         return _logs_._toString(text)
-    def log(msg, level=xbmc.LOGDEBUG):
-        return _logs_.log(msg,  level)
-    def logDbg(msg):
-        return _logs_.logDbg(msg)
-    def logNtc(msg):
-        return _logs_.logNtc(msg)
-    def logWarn(msg):
-        return _logs_.logWarn(msg)
-    def logErr(msg):
-        return _logs_.logErr(msg)
-    def notificationInfo(msg, sound = False,  force = False, dialog = True):
-        logNtc(msg)
+    def log(msg, level=xbmc.LOGDEBUG, idSuffix=""):
+        return _logs_.log(msg,  level, idSuffix)
+    def logDbg(msg, idSuffix=""):
+        return _logs_.logDbg(msg, idSuffix)
+    def logNtc(msg, idSuffix=""):
+        return _logs_.logNtc(msg, idSuffix)
+    def logWarn(msg, idSuffix=""):
+        return _logs_.logWarn(msg, idSuffix)
+    def logErr(msg, idSuffix=""):
+        return _logs_.logErr(msg, idSuffix)
+    def notificationInfo(msg, sound = False,  force = False, dialog = True, idSuffix=""):
+        logNtc(msg, idSuffix)
         if (dialog and not _notification_disable_all_) or force:
             return _logs_.notificationInfo(msg,  sound)
-    def notificationWarning(msg, sound = True,  force = False, dialog = True):
-        logWarn(msg)
+    def notificationWarning(msg, sound = True,  force = False, dialog = True, idSuffix=""):
+        logWarn(msg, idSuffix)
         if (dialog and not _notification_disable_all_) or force:
             return _logs_.notificationWarning(msg,  sound)
-    def notificationError(msg, sound = True,  force = False, dialog = True):
-        logErr(msg)
+    def notificationError(msg, sound = True,  force = False, dialog = True, idSuffix=""):
+        logErr(msg, idSuffix)
         if (dialog and not _notification_disable_all_) or force:
             return _logs_.notificationError(msg,  sound)
 
@@ -432,36 +433,153 @@ try:
 #        aCh2 = ch2.split('/')
 #        return aCh1[3] == aCh2[3]
 
-    def dirListing():
+    def dirListing(what=None):
         # This will give options to start saveEPG etc.
-        addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_, isFolder=False)
-        addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_, isFolder=False)
-        xbmcplugin.endOfDirectory(_handle_, updateListing=False)
+        if not what:
+            addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_icon_, isFolder=True)
+            #addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_, isFolder=True)
+            addDirectoryItem("Recently watched", _baseurl_+"?recentlywatched=1", image=_icon_, isFolder=True)
+            addDirectoryItem("Favourites", _baseurl_+"?favourites=1", image=_icon_, isFolder=True)
+            addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_, isFolder=False)
+            addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_, isFolder=False)
+            cacheToDisc=True
+        else:
+            cacheToDisc=False
+            #cacheToDisc=True
+            if what=="inProgress":
+                epgRows = _db_.getEpgRowsInProgress()
+            elif what=="favourites":
+                epgRows = _db_.getEpgRowsFavourites()
+            elif what=="recentlyWatched":
+                epgRows = _db_.getEpgRowsRecentlyWatched()
+            elif what == "watchLater":
+                epgRows = _db_.getEpgRowsWatchLater()
+            elif what == "favouritesKeywords":
+                epgRows = _db_.getFavourites()
+            else:
+                epgRows = {}
+            if epgRows:
+                for epgRowKey in epgRows.iterkeys():
+                    epg = epgRows[epgRowKey]
+                    if what=="favouritesKeywords":
+                        # TODO: editing, removing, adding a new one on the fly and from epg detail
+                        addDirectoryItem(epg["title_pattern"], _baseurl_+"?favouritekeywordedit=1&rowid="+str(epg["id"]), isFolder=False, calledFromList=what, items=epg)
+                    else:
+                        info = ""
+                        if what=="inProgress":
+                            inProgressTime = epg["inProgressTime"]
+                            length = epg["end"] - epg["start"]
+                            sTimeProgress = time.strftime('%H:%M:%S', time.gmtime(inProgressTime))
+                            sTimeLength = time.strftime('%H:%M:%S', time.gmtime(length))
+                            info = sTimeProgress+" / "+sTimeLength+" | "
+                        itemTitle = epg["channelName"]+": "+epg["title"]+" | "+info+_timestampToNiceDateTime(epg["start"], epg["end"])
+                        if epg['fanart_image']:
+                            icon=epg["fanart_image"]
+                        else:
+                            icon=_icon_
+                        addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(epg["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=epg["title"],  epg=epg, calledFromList=what)
+            if what=="favourites":
+                addDirectoryItem("Edit keywords", _baseurl_+"?favouriteskeywords=1", image=_icon_, isFolder=True)
+            if what=="favouritesKeywords":
+                addDirectoryItem("Add keyword", _baseurl_+"?favouritekeywordadd=1", image=_icon_, isFolder=False)
+            
+        xbmcplugin.endOfDirectory(_handle_, updateListing=False, cacheToDisc=cacheToDisc)
 
-    def addDirectoryItem(label, url, plot=None, title=None, date=None, icon=_icon_, image=None, fanart=None, isFolder=True):
+    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_, image=None, isFolder=True, epg=None, calledFromList=None, items=None):
         li = xbmcgui.ListItem(label)
+        if calledFromList and calledFromList == "favouritesKeywords":
+            actionList = [
+                ('Edit','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(items["id"])+')'),
+                ('Remove','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(items["id"])+')')
+            ]
+            li.addContextMenuItems(actionList)
+            xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
+            return
         if not title:
             title = label
         liVideo = {'title': title}
+        if plot:
+            liVideo['plot'] = plot
+        if epg:
+            if "fanart_image" in epg and epg["fanart_image"] and len(epg["fanart_image"]) > 0:
+                li.setArt({
+                  'icon': epg["fanart_image"],
+                  "fanart": epg["fanart_image"],
+                  "poster": epg["fanart_image"]
+                })
+            if "plot" in epg and epg["plot"] and len(epg["plot"]) > 0:
+                liVideo['plot'] = epg['plot']
+            if "plotoutline" in epg and epg["plotoutline"] and len(epg["plotoutline"]) > 0:
+                liVideo['plotoutline'] = epg['plotoutline']
+            if "genre" in epg and epg["genre"]:
+                liVideo['genre'] = epg["genre"]
+            li.addStreamInfo('video', {'duration': epg["end"]-epg["start"]})
+            
+        if calledFromList:
+            if calledFromList != "favourites":
+                actionList = []
+                if calledFromList == "inProgress":
+                    actionList.append(
+                        ('Play from beginning','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(epg["id"])+')')
+                    )
+                actionList.append(
+                    ('Remove from this list','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(epg["id"])+')')
+                )
+                li.addContextMenuItems(actionList)
+        
         if image:
             li.setThumbnailImage(image)
         li.setIconImage(icon)
         li.setInfo("video", liVideo)
         xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
+    def favouriteKeywordAction(action, rowID=None):
+        if action=="edit":
+            if not rowID:
+                return False
+            titlePattern = _db_.getFavourite(rowID=rowID)
+            if titlePattern:
+                titlePatternNew = xbmcgui.Dialog().input("Edit favourite", defaultt=titlePattern, type=xbmcgui.INPUT_ALPHANUM)
+                if not titlePatternNew:
+                    return False
+                _db_.updateFavourite(rowID=rowID, title_pattern=titlePatternNew)
+        elif action=="delete":
+            if not rowID:
+                return False
+            _db_.deleteFavourite(rowID=rowID)
+        elif action=="add":
+            titlePatternNew = xbmcgui.Dialog().input("Add favourite", defaultt="", type=xbmcgui.INPUT_ALPHANUM)
+            if not titlePatternNew:
+                return False
+            _db_.addFavourite(title_pattern=titlePatternNew)
+        xbmc.executebuiltin('Container.Refresh')
+    
+    def removeEpgFromList(removeFromList, epgRowID):
+        logDbg("Removing epg with id "+str(epgRowID)+" from list "+removeFromList)
+        listColDict = {
+            "inProgress": "inProgressTime", 
+            "favourites": "isFavourite", 
+            "recentlyWatched": "isRecentlyWatched", 
+            "watchLater": "isWatchLater"
+        }
+        if not removeFromList in listColDict:
+            return
+        listColumn = listColDict[removeFromList]
+        _db_.removeEpgFromList(epgRowID, listColumn)
+        xbmc.executebuiltin('Container.Refresh')
+        #dirListing(removeFromList)
+
     def showLogs():
         if os.path.exists(_logFilePath_):
             logFile = open(_logFilePath_, 'r')
             if logFile:
                 contentLines = []
-#                search = "["+_scriptname_+"]"
-                search = _scriptname_
                 isPreviousLineOurs = False
                 for logEntry in logFile:
-                    if search in logEntry:
+                    if _scriptname_ in logEntry or _logId_ in logEntry:
                         if "showlogs=1" in logEntry:
                             continue
-                        line = re.sub(r"T\:\d+\s*", "", logEntry).replace(_scriptname_, "_O2TVGo_")
+                        line = re.sub(r"T\:\d+\s*", "", logEntry).replace(_scriptname_, _logId_)
                         contentLines.append(line)
                         isPreviousLineOurs = True
                     elif "Previous line repeats" in logEntry and isPreviousLineOurs:
@@ -498,7 +616,6 @@ try:
             _restartPVR()
 
     def _is_saveEpg_running():
-        # TODO: check if this is OK - seems not #
         locktime = _db_.getLock("saveEpgRunning")
         if locktime == False:
             logDbg("Couldn't retrieve lock: saveEpgRunning")
@@ -518,9 +635,10 @@ try:
 #            return False
         notification = _notification_refreshing_started_ or forceNotifications
         dialogDebug = False or forceNotifications
+        logIdSuffix = "/saveChannels()/"+datetime.datetime.fromtimestamp( int(time.time()) ).strftime('%H%M%S')
         
         msg = _lang_(30262) % "saveChannels()"
-        notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+        notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
         
         if os.path.exists(_m3u_):
             lastModTimeM3U = os.path.getmtime(_m3u_)
@@ -529,20 +647,20 @@ try:
                 lastModTimeM3UAdditional = os.path.getmtime(_m3u_additional_)
                 if (timestampNow - lastModTimeM3U) <= (_channel_refresh_rate_) and (lastModTimeM3U - lastModTimeM3UAdditional) >= 0:
                     msg = _lang_(30263) % (_m3u_,  _m3u_additional_)
-                    notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+                    notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
                     _maybeRestartPVR(_channel_refresh_rate_)
                     return True
             elif (timestampNow - lastModTimeM3U) < (_channel_refresh_rate_):
                 msg = _lang_(30264) % _m3u_
-                notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+                notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
                 _maybeRestartPVR(_channel_refresh_rate_)
                 return True
         msg = _lang_(30265)
-        notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+        notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
         channels = _fetchChannels()
         if not channels:
             msg = _lang_(30507)
-            notificationError(msg,  True,  forceNotifications,  dialogDebug)
+            notificationError(msg,  True,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
             return False
         notificationInfo(_lang_(30251),  False,  forceNotifications,  notification)
         
@@ -572,7 +690,7 @@ try:
 
                 iChannelJsonNumber += 1
             except ChannelIsNotBroadcastingError:
-                logDbg("Channel "+channel.name+" ("+str(iChannelJsonNumber+1)+"/"+str(numberOfChannels)+") is not broadcasting; skipping it")
+                logDbg("Channel "+channel.name+" ("+str(iChannelJsonNumber+1)+"/"+str(numberOfChannels)+") is not broadcasting; skipping it", idSuffix=logIdSuffix)
                 iChannelJsonNumber += 1 # Otherwise the EPG guides get mixed up!
 
         m3u = "\n".join(m3uLines)
@@ -590,19 +708,19 @@ try:
                     m3u += additional_prgs
             else:
                 msg = _lang_(30508) % _m3u_additional_
-                notificationError(msg,  True,  forceNotifications,  dialogDebug)
+                notificationError(msg,  True,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
                 return False
         m3u_file = open(_m3u_, 'w+')
         if m3u_file:
             m3u_file.write(m3u)
             m3u_file.close()
             msg = _lang_(30266) % _m3u_
-            notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+            notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
             if restartPVR:
                 _restartPVR()
         else:
             msg = _lang_(30509) % _m3u_
-            notificationError(msg,  True,  forceNotifications,  dialogDebug)
+            notificationError(msg,  True,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
             return False
         return True
 
@@ -632,13 +750,14 @@ try:
     def saveEPG(restartPVR = False,  forceNotifications = False):
         notification = _notification_refreshing_started_ or forceNotifications
         dialogDebug = False or forceNotifications
+        logIdSuffix = "/saveEPG()/"+datetime.datetime.fromtimestamp( int(time.time()) ).strftime('%H%M%S')
         
         msg = _lang_(30262) % "saveEPG()"
-        notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+        notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
 
         if _is_saveEpg_running():
             msg = _lang_(30257) % "saveEPG()"
-            notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+            notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
             _maybeRestartPVR(_epg_refresh_rate_)
             return True
 
@@ -649,51 +768,44 @@ try:
                 lastModTimeM3UAdditional = os.path.getmtime(_m3u_additional_)
                 if (timestampNow - lastModTimeXML) <= (_epg_refresh_rate_) and (lastModTimeXML - lastModTimeM3UAdditional) >= 0:
                     msg = _lang_(30263) % (_xmltv_,  _m3u_additional_)
-                    notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+                    notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
                     _maybeRestartPVR(_epg_refresh_rate_)
                     return True
             elif (timestampNow - lastModTimeXML) <= (_epg_refresh_rate_):
                 msg = _lang_(30264) % _xmltv_
-                notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+                notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
                 _maybeRestartPVR(_epg_refresh_rate_)
                 return True
         
         msg = _lang_(30258)
-        notificationInfo(msg,  False,  forceNotifications,  dialogDebug)
+        notificationInfo(msg,  False,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
         
         channelsDict = _getChannelsListDict()
         if not channelsDict:
             msg = _lang_(30510)
-            notificationError(msg,  True,  forceNotifications,  dialogDebug)
+            notificationError(msg,  True,  forceNotifications,  dialogDebug, idSuffix=logIdSuffix)
             return False
         _setSaveEpgLock()
         
-        notificationInfo(_lang_(30252),  False,  forceNotifications,  notification)
+        notificationInfo(_lang_(30252),  False,  forceNotifications,  notification, idSuffix=logIdSuffix)
         
         numberOfChannels = len(channelsDict)
-        #logDbg("saveEPG() - checkpoint 1")
+        #logDbg("saveEPG() - checkpoint 1", idSuffix=logIdSuffix)
         i = 0
         et_tv = etree.Element("tv")
-        #logDbg("saveEPG() - checkpoint 2")
-        #logDbg(channelsDict)
-        #logDbg(str(numberOfChannels))
+        #logDbg("saveEPG() - checkpoint 2", idSuffix=logIdSuffix)
+        #logDbg(channelsDict, idSuffix=logIdSuffix)
+        #logDbg(str(numberOfChannels), idSuffix=logIdSuffix)
         #while i < numberOfChannels or str(i) in channelsDict:
         for key in channelsDict:
-            #logDbg("saveEPG() - checkpoint 3b")
-#            key = str(j)
-#            if not key in channelsDict:
-#                i += 1
-#                numberOfChannels += 1
-#                logDbg("saveEPG() - checkpoint 3e0, key: "+key)
-#                continue
-            #logDbg("saveEPG() - checkpoint 3 - channel "+channelsDict[key]["name"])
+            #logDbg("saveEPG() - checkpoint 3b", idSuffix=logIdSuffix)
             channel = channelsDict[key]
             et_channel = etree.SubElement(et_tv, "channel", id=channel["channel_key"])
             etree.SubElement(et_channel, "display-name", lang="sk").text = channel["name"]
             i += 1
-            #logDbg("saveEPG() - checkpoint 3e")
+            #logDbg("saveEPG() - checkpoint 3e", idSuffix=logIdSuffix)
         _setSaveEpgLock()
-        #logDbg("saveEPG() - checkpoint 4")
+        #logDbg("saveEPG() - checkpoint 4", idSuffix=logIdSuffix)
 
         iFetchedChannel = 0
         i = 0
@@ -702,11 +814,11 @@ try:
         for key in channelsDict:
 #            key = str(j)
 #            if not key in channelsDict:
-#                logDbg("No channel at position "+str(i+1)+"/"+str(numberOfChannels)+"; skipping it")
+#                logDbg("No channel at position "+str(i+1)+"/"+str(numberOfChannels)+"; skipping it", idSuffix=logIdSuffix)
 #                i += 1
 #                continue
             channel = channelsDict[key]
-            #logDbg("Starting refresh of EPG for channel "+channel["name"])
+            #logDbg("Starting refresh of EPG for channel "+channel["name"], idSuffix=logIdSuffix)
             # read the db and delete old entries #
             epgDict = None
             useFromTimestamp = False
@@ -718,16 +830,16 @@ try:
             elif (timestampNow - channel["epgLastModTimestamp"]) <= _epg_refresh_rate_:
                 # use this instead of asking for the data #
                 useDB = True
-                #logNtc(channel["name"]+" 1")
+                #logNtc(channel["name"]+" 1", idSuffix=logIdSuffix)
             olderThan = (timestampNow -  (2*24*3600))
             _db_.deleteOldEpg(endBefore = olderThan)
-            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 1")
+            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 1", idSuffix=logIdSuffix)
             epgDict = _db_.getEpgRows(channel["id"])
             if not epgDict:
                 # if there were no epg entries with for this channel, so just use an empty dictionary #
                 epgDict = {}
                 useDB = False
-                #logNtc(channel["name"]+" 2")
+                #logNtc(channel["name"]+" 2", idSuffix=logIdSuffix)
             else:
                 # check if the latest programme in the epg starts in the future #
                 maxTimestamp = max(epgDict, key=int)
@@ -735,24 +847,24 @@ try:
                     # Data is not fresh enough, we need to load new data - enough to do so from the maxTimestamp #
                     useDB = False
                     useFromTimestamp = True
-                    #logNtc(channel["name"]+" 3")
-                    #logNtc("Age of latest programme in seconds: "+str(int(maxTimestamp) - int(timestampNow)))
-                    #logNtc("Latest programme: "+str(maxTimestamp)+" => "+_toString(epgDict[maxTimestamp]))
-            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 2")
+                    #logNtc(channel["name"]+" 3", idSuffix=logIdSuffix)
+                    #logNtc("Age of latest programme in seconds: "+str(int(maxTimestamp) - int(timestampNow)), idSuffix=logIdSuffix)
+                    #logNtc("Latest programme: "+str(maxTimestamp)+" => "+_toString(epgDict[maxTimestamp]), idSuffix=logIdSuffix)
+            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 2", idSuffix=logIdSuffix)
             _setSaveEpgLock()
-            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 3")
+            #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 3", idSuffix=logIdSuffix)
 
             if useDB:
                 msg = _lang_(30259) % (channel["name"], i+1, numberOfChannels)
-                notificationInfo(msg, False, forceNotifications, dialogDebug)
+                notificationInfo(msg, False, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
             else:
                 if iFetchedChannel >= _epg_fetch_batch_limit_:
                     msg = _lang_(30267) % _epg_fetch_batch_limit_
-                    notificationInfo(msg, False, forceNotifications, dialogDebug)
+                    notificationInfo(msg, False, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
                     return True
                 msg = _lang_(30268) % (channel["name"], i+1, numberOfChannels)
-                notificationInfo(msg, False, forceNotifications, dialogDebug)
-#                logNtc("DEVEL STOP")
+                notificationInfo(msg, False, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
+#                logNtc("DEVEL STOP", idSuffix=logIdSuffix)
 #                return False
                 forceFromTimestamp = None
                 if useFromTimestamp:
@@ -761,7 +873,7 @@ try:
                     epg = _fetchEpg(channel["channel_key"], 2 * 24, 2 * 24, forceFromTimestamp)
                 except RequestError:
                     _db_.setLock("saveEpgRunning", time.time()+_requestErrorTimeout_)
-                    notificationError(_lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes")
+                    notificationError(_lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes", idSuffix=logIdSuffix)
                     return True
                 if epg:
                     for prg in epg:
@@ -770,7 +882,7 @@ try:
                             prg_detail = _fetchEpgDetail(epg_id)
                         except RequestError:
                             _db_.setLock("saveEpgRunning", time.time()+_requestErrorTimeout_)
-                            notificationError(_lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes")
+                            notificationError(_lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes", idSuffix=logIdSuffix)
                             return True
                         if prg_detail['picture']:
                             if prg_detail['picture'].startswith("http://app.o2tv.cz") or prg_detail['picture'].startswith("http://www.o2tv.cz"):
@@ -810,8 +922,8 @@ try:
                                 "genres": genres,
                                 "genre": genre
                         }
-                        #logDbg("Updating EPG of channel "+channel["name"])
-                        #logDbg(epgDict[start])
+                        #logDbg("Updating EPG of channel "+channel["name"], idSuffix=logIdSuffix)
+                        #logDbg(epgDict[start], idSuffix=logIdSuffix)
                         _db_.updateEpg(
                                 start = start,
                                 end = _timestampishToTimestamp(prg['endTimestamp']),
@@ -830,15 +942,14 @@ try:
                                 startOld = start, 
                                 epgIdOld = prg['epgId']
                         )
-                        # TODO: check if channel was updated #
                         _db_.updateChannel(id = channel["id"],  epgLastModTimestamp = int(time.time()))
                         _setSaveEpgLock()
                 else:
                     msg = _lang_(30511) % _toString(epg)
-                    notificationError(msg, True, forceNotifications, dialogDebug)
+                    notificationError(msg, True, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
                     errorOccured = True
                 iFetchedChannel += 1
-                #logNtc("DEVEL STOP")
+                #logNtc("DEVEL STOP", idSuffix=logIdSuffix)
                 #return False
 
             _setSaveEpgLock()
@@ -864,7 +975,7 @@ try:
                 _setSaveEpgLock()
             i += 1
         ## END: for
-        # logDbg("saveEPG() 2")
+        # logDbg("saveEPG() 2", idSuffix=logIdSuffix)
         
         if errorOccured:
             return False
@@ -876,7 +987,7 @@ try:
             xmltv_file.write(xmlString)
             xmltv_file.close()
             msg = _lang_(30269) % _xmltv_
-            notificationInfo(msg, False, forceNotifications, dialogDebug)
+            notificationInfo(msg, False, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
             if restartPVR:
                 _restartPVR()
         _setSaveEpgLock()
@@ -892,13 +1003,14 @@ try:
                 xmltv_file.write(xmlString)
                 xmltv_file.close()
                 msg = _lang_(30270) % _xmltv_
-                notificationInfo(msg, False, forceNotifications, dialogDebug)
+                notificationInfo(msg, False, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
                 if restartPVR:
                     _restartPVR()
             _setSaveEpgLock()
         return True
 
     def _restartPVR():
+        # Queue for restart if something fails #
         _db_.setLock("lastRestart",  0)
 
         if not _force_restart_:
@@ -910,6 +1022,8 @@ try:
                     logNtc("Player is currently playing a pvr channel, not restarting")
                     return
 
+        # Prevent restarting by another thread #
+        _db_.setLock("lastRestart",  time.time())
         dialog_id = xbmcgui.getCurrentWindowId()
         if dialog_id == 10100 or (dialog_id >= 10600 and dialog_id < 10800):
             xbmc.executebuiltin("ActivateWindow(home)")
@@ -933,10 +1047,12 @@ try:
                         _db_.setLock("lastRestart",  time.time())
                         return True
                     else:
-                        # Couldn't enable the plugin
+                        # Couldn't enable the plugin => Queue for restart #
+                        _db_.setLock("lastRestart",  0)
                         return False
                 else:
-                    # Couldn't disable the plugin
+                    # Couldn't disable the plugin => Queue for restart #
+                    _db_.setLock("lastRestart",  0)
                     return False
             else:
                 # plugin is disabled
@@ -951,10 +1067,12 @@ try:
                     _db_.setLock("lastRestart",  time.time())
                     return True
                 else:
-                    # Couldn't enable the plugin
+                    # Couldn't enable the plugin => Queue for restart #
+                    _db_.setLock("lastRestart",  0)
                     return False
         else:
-            # Couldn't get plugin details
+            # Couldn't get plugin details => Queue for restart #
+            _db_.setLock("lastRestart",  0)
             return False
 
     def _merge_additional_epg_xml(et_tv, test=False):
@@ -1076,6 +1194,29 @@ try:
     def _timestampishToTimestamp(timestamp):
         return int(timestamp)/1000
 
+    def _timestampToNiceDateTime(fromTimestamp,  toTimestamp=None):
+        if not toTimestamp:
+            return datetime.datetime.fromtimestamp(
+                fromTimestamp
+            ).strftime('%Y/%m/%dT%H:%M:%S')
+        else:
+            sDateFrom = datetime.datetime.fromtimestamp(
+                fromTimestamp
+            ).strftime('%Y/%m/%d')
+            sDateTo = datetime.datetime.fromtimestamp(
+                toTimestamp
+            ).strftime('%Y/%m/%d')
+            sTimeFrom = datetime.datetime.fromtimestamp(
+                fromTimestamp
+            ).strftime('%H:%M')
+            sTimeTo = datetime.datetime.fromtimestamp(
+                toTimestamp
+            ).strftime('%H:%M')
+            if sDateFrom == sDateTo:
+                return sDateFrom + " " + sTimeFrom + " - " + sTimeTo
+            else:
+                return sDateFrom + " " + sTimeFrom + " - " + sDateTo + " " + sTimeTo
+    
     def getChannelKeyPvr(playingNow):
         return False #TODO: convert to DB if needed#
         #logDbg(playingNow)
@@ -1156,7 +1297,7 @@ try:
 
     def getChannelTimeshiftUrl(epg, channelKey, toTimestamp = None):
         global _o2tvgo_
-        objChannel = LiveChannel(_o2tvgo_, channelKey,  None,  None,  None)
+        objChannel = LiveChannel(o2tv=_o2tvgo_, channel_key=channelKey,  name=None, logo_url=None, weight=None, _logs_=_logs_, scriptname=_scriptname_, logId=_logId_)
         startTimestamp = epg["startTimestamp"]
         if not toTimestamp:
             toTimestamp = epg["endTimestamp"]
@@ -1168,7 +1309,7 @@ try:
 
     def getChannelStartoverUrl(epg, channelKey):
         global _o2tvgo_
-        objChannel = LiveChannel(_o2tvgo_, channelKey,  None,  None,  None)
+        objChannel = LiveChannel(o2tv=_o2tvgo_, channel_key=channelKey,  name=None, logo_url=None, weight=None, _logs_=_logs_, scriptname=_scriptname_, logId=_logId_)
         startTimestamp = epg["startTimestamp"]
 
         channelUrlStartover = objChannel.urlStartover(startTimestamp)
@@ -1203,7 +1344,7 @@ try:
         timestamp = timeDelta.total_seconds() + epgShift
         return int(timestamp)
 
-    def playChannelFromEpg(startTime, startDate, channelName, channelNumber, playingCurrently=False, startTimestamp=None, channelIndex=None):
+    def playChannelFromEpg(startTime, startDate, channelName, channelNumber, playingCurrently=False, startTimestamp=None, channelIndex=None, epgRowID=None, calledFromList=None):
         player = xbmc.Player()
 
         logNtc("playing from epg")
@@ -1211,35 +1352,55 @@ try:
         #logDbg(startTime)
         #logDbg(channelName)
 
-        
-        if startTimestamp:
-            timestamp = int(startTimestamp)
+        epg = None
+        channelRow = None
+        timestamp = None
+        startOffset = 0
+        watchedCount = 0
+        if epgRowID:
+            epg = _db_.getEpgChannelRow(epgRowID)
+            if epg and "channelKey" in epg:
+                channelKey = epg["channelKey"]
+                channelID = epg["channelID"]
+                if calledFromList == "inProgress" and "inProgressTime" in epg and epg["inProgressTime"] and epg["inProgressTime"] > 5:
+                    startOffset = epg["inProgressTime"] - 5
+                elif calledFromList == "recentlyWatched":
+                    watchedCount = 1
         else:
-            if playingCurrently:
-                timestamp = int(time.time())
+            if startTimestamp:
+                timestamp = int(startTimestamp)
             else:
-                timestamp = getTimestampFromDayTime(startDate, startTime)
-                #logDbg(timestamp)
+                if playingCurrently:
+                    timestamp = int(time.time())
+                else:
+                    timestamp = getTimestampFromDayTime(startDate, startTime)
+                    #logDbg(timestamp)
 
-            if not timestamp:
-                notificationError(_lang_(30504))
-                logDbg([startDate, startTime, channelName])
+                if not timestamp:
+                    notificationError(_lang_(30504))
+                    logDbg([startDate, startTime, channelName])
+                    return
+
+            channelRow = _db_.getChannelRow(nameOld = channelName)
+            if not channelRow:
+                notificationError(_lang_(30505))
                 return
-
-        channelRow = _db_.getChannelRow(nameOld = channelName)
-        if not channelRow:
-            notificationError(_lang_(30505))
-            
-            return
-        epg = _db_.getEpgRowByStart(start = timestamp, channelID = channelRow["id"])
+            epg = _db_.getEpgRowByStart(start = timestamp, channelID = channelRow["id"])
+            channelKey = channelRow["key"]
+            channelID = channelRow["id"]
+            if epg and "isRecentlyWatched" in epg and epg["isRecentlyWatched"] > 0:
+                watchedCount = 1
+            elif epg and "inProgressTime" in epg and epg["inProgressTime"] > 5:
+                startOffset = epg["inProgressTime"] - 5
         if not epg:
             notificationError(_lang_(30506))
-            logDbg([channelRow, timestamp, epg])
+            logDbg([channelRow, timestamp, epgRowID, epg])
             return
-        channelKey = channelRow["key"]
         #startPos = timestamp - int(epg["start"])
 
-        timeShift = _epgTimeshift_ * 60 * 60
+        #logDbg(epg)
+        # TODO: check if timeshift is needed here!
+        timeShift = _epgTimeshift_ * 60 * 60 * 1000
         timestampNow = int(time.time()) * 1000
         if timestampNow < epg["endTimestamp"] + timeShift:
             if timestampNow < epg["startTimestamp"] + timeShift:
@@ -1252,7 +1413,10 @@ try:
             #channelUrlNew = getChannelTimeshiftUrl(epg, channelKey, endTimestamp)
             channelUrlNew = getChannelStartoverUrl(epg, channelKey)
         else:
-            notificationInfo(_lang_(30255) % epg["title"])
+            if startOffset > 0:
+                notificationInfo(_lang_(30272) % (epg["title"], time.strftime('%H:%M:%S', time.gmtime(startOffset))))
+            else:
+                notificationInfo(_lang_(30255) % epg["title"])
             endTimestamp = epg["endTimestamp"]
             channelUrlNew = getChannelTimeshiftUrl(epg, channelKey, endTimestamp)
 
@@ -1273,24 +1437,29 @@ try:
             videoinfo['plotoutline'] = epg['plotoutline']
         if "genre" in epg and epg["genre"]:
             videoinfo['genre'] = epg["genre"]
+        if startOffset > 0:
+            li.setProperty('StartOffset',  str(startOffset))
+        if watchedCount > 0:
+            li.setProperty('WatchedCount',  str(watchedCount))
+            videoinfo["playcount"] = 1
         if len(videoinfo) > 0:
             li.setInfo('video', videoinfo)
 
         player.play(channelUrlNew, li)
         _db_.clearCurrentlyPlaying()
         _db_.clearNextProgramme()
-        _db_.updateEpg(id = epg["id"], channelID = channelRow["id"], isCurrentlyPlaying = 1, inProgressTime = 1)
+        _db_.updateEpg(id = epg["id"], channelID = channelID, isCurrentlyPlaying = 1, inProgressTime = 1)
 
         logDbg("Looking for next programme")
         timestampNext = int(epg["end"])
 #        epgKeyNext, epgNext, startPosNext = getEpgByChannelIndexAndTimestamp(channelIndex, timestampNext)
 
-        epgNext = _db_.getEpgRowByStart(start = timestampNext, channelID = channelRow["id"])
+        epgNext = _db_.getEpgRowByStart(start = timestampNext, channelID = channelID)
         if not epgNext:
             logErr("Didn't find next programme in epg")
             logDbg([channelRow, timestamp, epg])
         else:
-            _db_.updateEpg(id = epgNext["id"], channelID = channelRow["id"], isNextProgramme = 1)
+            _db_.updateEpg(id = epgNext["id"], channelID = channelID, isNextProgramme = 1)
 
     def pausePlayer(channelNumber = None):
         return False #TODO: convert to DB if needed#
@@ -1402,6 +1571,9 @@ try:
     test=None
     showplayinginfo=None
     playfromepg=None
+    epgrowid=None
+    calledfrom=None
+    removefromlist=None
     starttime=None
     startdate=None
     channelname=None
@@ -1410,6 +1582,15 @@ try:
     starttimestamp=None
     channelindex=None
     iptv_simple_settings=None
+    favourites=None
+    favouriteskeywords = None
+    rowid=None
+    favouritekeywordedit=None
+    favouritekeyworddelete=None
+    favouritekeywordadd=None
+    inprogr=None
+    recentlywatched=None
+    watchlater=None
 
     params=get_params()
     assign_params(params)
@@ -1424,7 +1605,7 @@ try:
         if ok:
             ok = saveEPG(False, forceNotifications)
     elif playfromepg:
-        playChannelFromEpg(starttime, startdate, channelname, channelnumber, playingcurrently, starttimestamp, channelindex)
+        playChannelFromEpg(starttime, startdate, channelname, channelnumber, playingcurrently, starttimestamp, channelindex, epgRowID = epgrowid, calledFromList = calledfrom)
     elif iptv_simple_settings:
         _openIptvSimpleClientSettings()
     elif showlogs:
@@ -1438,12 +1619,30 @@ try:
         logPlayingInfo()
     elif test:
         _test()
+    elif recentlywatched:
+        dirListing("recentlyWatched")
+    elif favourites:
+        dirListing("favourites")
+    elif favouriteskeywords:
+        dirListing("favouritesKeywords")
+    elif inprogr:
+        dirListing("inProgress")
+    elif watchlater:
+        dirListing("watchLater")
+    elif removefromlist:
+        removeEpgFromList(removefromlist, epgrowid)
+    elif favouritekeywordedit:
+        favouriteKeywordAction(action="edit", rowID=rowid)
+    elif favouritekeyworddelete:
+        favouriteKeywordAction(action="delete", rowID=rowid)
+    elif favouritekeywordadd:
+        favouriteKeywordAction(action="add")
     else:
         dirListing()
     _db_.closeDB()
 except Exception as ex:
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    _logs_ = Logs(_scriptname_)
+    _logs_ = Logs(_scriptname_, _logId_)
     xbmcgui.Dialog().notification(_scriptname_, _logs_._toString(exc_value), xbmcgui.NOTIFICATION_ERROR)
     _logs_.logErr(_logs_._toString(exc_value))
     _logs_.logDbg(traceback.format_exc())

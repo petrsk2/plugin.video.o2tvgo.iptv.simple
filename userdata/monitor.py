@@ -8,14 +8,28 @@ _scriptname_ = _addon_o2tvgo_iptvo_simple_.getAddonInfo('name')
 _next_programme_ = _profile_+'o2tvgo-next_programme.json'
 _m3u_json_ = _profile_+'o2tvgo-prgs.json'
 _db_path_ = _profile_+'o2tvgo.db'
+_logId_ = "O2TVGO/IPTVSimple/monitor.py"
 O2TVGO_VIDEO = False
 
 class O2tvgoDBMini:
-    def __init__(self,  db_path):
+    def __init__(self,  db_path, logId):
         self.db_path = db_path
         self.connection = False
         self.cursor = False
+        self.logId = logId
+        self.logIdSuffix = "/O2tvgoDBMini"
         
+        def log(self, msg, level=xbmc.LOGDEBUG):
+            xbmc.log("[%s] %s"%(self.logId+self.logIdSuffix,msg.__str__()), level)
+        def logDbg(self, msg):
+            self.log(msg, level=xbmc.LOGDEBUG)
+        def logNtc(self, msg):
+            self.log(msg, level=xbmc.LOGNOTICE)
+        def logWarn(self, msg):
+            self.log(msg, level=xbmc.LOGWARNING)
+        def logErr(self, msg):
+            self.log(msg, level=xbmc.LOGERROR)
+    
     def __del__(self):
         self.closeDB()
     
@@ -48,7 +62,7 @@ class O2tvgoDBMini:
             self.commit()
             return self.cursor.lastrowid
         except Exception as ex:
-            xbmc.log("*** Exception while executing a query ("+sql+"): "+str(ex))
+            self.logErr("Exception while executing a query ("+sql+"): "+str(ex))
             self.closeDB()
 
     def _getEpgColumns(self):
@@ -116,29 +130,48 @@ class O2tvgoDBMini:
         all = self.cursor.fetchall()
         rowcount = len(all)
         if rowcount > 1:
-            xbmc.log("More than one row match the lock search criteria for: name = "+name+"!")
+            self.logWarn("More than one row match the lock search criteria for: name = "+name+"!")
             return 0
         if rowcount == 0:
             if not silent:
-                xbmc.log("No row matches the channel lock criteria for: name = "+name+"!")
+                self.logWarn("No row matches the channel lock criteria for: name = "+name+"!")
             return 0
         r = all[0]
         val = r[0]        
         return val
 
-_db_ = O2tvgoDBMini(_db_path_)
+_db_ = O2tvgoDBMini(_db_path_, _logId_)
 
 class MyPlayer(xbmc.Player) :
 
-        def __init__ (self):
-            #xbmc.log('*** CALLBACK: __init__')
-            xbmc.Player.__init__(self)
+#        def __init__ (self, logId):
+#            #self.logDbg('CALLBACK: __init__')
+#            xbmc.Player.__init__(self)
+#            self.logId = logId
+#            self.logIdSuffix = "/O2tvgoDBMini"
 
+        def __new__ (self, logId):
+            #self.logDbg('CALLBACK: __new__')
+            self.logId = logId
+            self.logIdSuffix = "/MyPlayer"
+            return super(MyPlayer, self).__new__(self)
+
+        def log(self, msg, level=xbmc.LOGDEBUG):
+            xbmc.log("[%s] %s"%(self.logId+self.logIdSuffix,msg.__str__()), level)
+        def logDbg(self, msg):
+            self.log(msg, level=xbmc.LOGDEBUG)
+        def logNtc(self, msg):
+            self.log(msg, level=xbmc.LOGNOTICE)
+        def logWarn(self, msg):
+            self.log(msg, level=xbmc.LOGWARNING)
+        def logErr(self, msg):
+            self.log(msg, level=xbmc.LOGERROR)
+        
         #def onPlayBackStarted(self):
-            #xbmc.log('*** CALLBACK: onPlayBackStarted')
+            #self.logDbg('CALLBACK: onPlayBackStarted')
 
         def onPlayBackEnded(self):
-            xbmc.log('*** CALLBACK: onPlayBackEnded')
+            self.logDbg('CALLBACK: onPlayBackEnded')
             _db_.setIsCurrentlyPlayingTo0()
             _db_.closeDB()
             
@@ -146,17 +179,17 @@ class MyPlayer(xbmc.Player) :
                 self._maybePlayNextProgramme()
 
         def onPlayBackStopped(self):
-            xbmc.log('*** CALLBACK: onPlayBackStopped')
+            self.logDbg('CALLBACK: onPlayBackStopped')
             _db_.setIsCurrentlyPlayingTo0()
             _db_.closeDB()
             if O2TVGO_VIDEO:
                 self._maybePlayNextProgramme()
 
         #def onPlayBackPaused(self):
-            #xbmc.log('*** CALLBACK: onPlayBackPaused')
+            #self.logDbg('CALLBACK: onPlayBackPaused')
 
         #def onPlayBackResumed(self):
-            #xbmc.log('*** CALLBACK: onPlayBackResumed')
+            #self.logDbg('CALLBACK: onPlayBackResumed')
 
         def _maybePlayNextProgramme(self):
             nextProgramme = _db_.getNextEpg()
@@ -176,7 +209,7 @@ class MyPlayer(xbmc.Player) :
                     command += '&channelname='
                     command += str(nextProgramme["channelName"])
                     command += ')'
-                    xbmc.log('*** command: '+command)
+                    self.logDbg('command: '+command)
                     xbmc.executebuiltin(command)
 
             else:
@@ -210,9 +243,9 @@ class MyPlayer(xbmc.Player) :
                                 channelID = channel["channelid"]
                                 break
                     if not channelID and channelID != 0:
-                        xbmc.log("*** Could not find the channel's ID")
-                        xbmc.log('*** channelName: '+nextProgramme["channelName"])
-                        xbmc.log('*** channels: '+jsonResponse)
+                        self.logErr("Could not find the channel's ID")
+                        self.logDbg('channelName: '+nextProgramme["channelName"])
+                        self.logDbg('channels: '+jsonResponse)
                     else:
                         payload = {
                           "jsonrpc": "2.0",
@@ -230,21 +263,24 @@ class MyPlayer(xbmc.Player) :
                             responseDecoded = json.loads(jsonResponse)
                             if "error" in responseDecoded:
                                 if "message" in responseDecoded["error"]:
-                                    xbmc.log("*** Could not play "+nextProgramme["channelKey"]+": "+responseDecoded["error"]["message"])
+                                    self.logErr("Could not play "+nextProgramme["channelKey"]+": "+responseDecoded["error"]["message"])
                                 else:
-                                    xbmc.log("*** Could not play "+nextProgramme["channelKey"])
-                                xbmc.log('*** payloadJson: '+payloadJson)
-                                xbmc.log('*** jsonResponse: '+jsonResponse)
+                                    self.logErr("Could not play "+nextProgramme["channelKey"])
+                                self.logDbg('payloadJson: '+payloadJson)
+                                self.logDbg('jsonResponse: '+jsonResponse)
                         else:
-                            xbmc.log("*** Could not play "+nextProgramme["channelKey"]+": No response from JSONRPC")
-                            xbmc.log('*** payloadJson: '+payloadJson)
-                            xbmc.log('*** jsonResponse: '+jsonResponse)
+                            self.logErr("Could not play "+nextProgramme["channelKey"]+": No response from JSONRPC")
+                            self.logDbg('payloadJson: '+payloadJson)
+                            self.logDbg('jsonResponse: '+jsonResponse)
 
             _db_.setIsNextProgrammeUsed()
             _db_.closeDB()
 
+player=MyPlayer(_logId_)
 
-player=MyPlayer()
+def _logDbg(msg, level=xbmc.LOGDEBUG, logIdSuffix=""):
+    global _logId_
+    xbmc.log("[%s] %s"%(_logId_+logIdSuffix,msg.__str__()), level)
 
 def isPlayingVideoO2TVGO():
     currentlyPlaying = _db_.getCurrentlyPlayingEpg()
@@ -256,7 +292,7 @@ def isPlayingVideoO2TVGO():
         #position = timestampNow - int(currentlyPlaying['start'])
         position = int(xbmc.Player().getTime())
         length = int(currentlyPlaying['end']) - int(currentlyPlaying['start'])
-        #xbmc.log('*** isPlayingVideoO2TVGO: '+str(length)+", "+str(position)+", "+str(timestampNow)+", "+currentlyPlaying["channelName"]+", "+str(currentlyPlaying["title"]))
+        #_logDbg(msg='isPlayingVideoO2TVGO: '+str(length)+", "+str(position)+", "+str(timestampNow)+", "+currentlyPlaying["channelName"]+", "+str(currentlyPlaying["title"]), logIdSuffix="/isPlayingVideoO2TVGO()")
         if length - position < 30:
             _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  0)
             _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
@@ -266,7 +302,7 @@ def isPlayingVideoO2TVGO():
         return True
     playingNow = xbmc.Player().getPlayingFile()
     if not playingNow.endswith("m3u8"):
-        #xbmc.log('*** isPlayingVideoO2TVGO: not playing m3u8')
+        #_logDbg(msg='isPlayingVideoO2TVGO: not playing m3u8', logIdSuffix="/isPlayingVideoO2TVGO()")
         return False
     aPlayingNow = playingNow.split('/')
     sPlayingNowFileName = aPlayingNow[-1]
@@ -294,7 +330,7 @@ while not monitor.abortRequested() and not xbmc.abortRequested:
     # Sleep/wait for abort for 5 seconds
     if monitor.waitForAbort(4) or xbmc.abortRequested:
         # Abort was requested while waiting. We should exit
-        xbmc.log("abort was requested")
+        _logDbg(msg="abort was requested", logIdSuffix="/while")
         break
 
     if xbmc.Player().isPlayingVideo():
@@ -303,8 +339,8 @@ while not monitor.abortRequested() and not xbmc.abortRequested:
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             e = sys.exc_info()[0]
-            xbmc.log('*** isPlayingVideoO2TVGO exception: ' + str(e))
-            xbmc.log(traceback.format_exc())
+            _logDbg(msg='isPlayingVideoO2TVGO exception: ' + str(e), logIdSuffix="/while/exception")
+            _logDbg(msg=traceback.format_exc(), logIdSuffix="/while/exception")
             O2TVGO_VIDEO = False
 
     else:

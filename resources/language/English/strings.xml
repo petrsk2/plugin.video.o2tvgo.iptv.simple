@@ -62,6 +62,7 @@
   <string id="30269">'%s' file saved successfully with O2TV epg</string>
   <string id="30270">'%s' file saved successfully with additional epg</string>
   <string id="30271">No plugin related entries in file ('%s')</string>
+  <string id="30272">Resuming programme '%s' from %s</string>
   
   <string id="30500">Error ocurred during runtime.</string>
   <string id="30501">Allow reporting of errors?</string>
