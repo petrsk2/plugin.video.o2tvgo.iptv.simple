@@ -664,7 +664,7 @@ class O2tvgoDB:
             favouriteTitleQuery += "e.title LIKE '%"+row["title_pattern"]+"%'"
         if len(favouriteTitleQuery) == 0:
             return {}
-        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE "+favouriteTitleQuery+" ORDER BY e.startTimestamp ASC")
+        self.cexec("SELECT e.*, ch.name AS channelName, CAST(strftime('%s','now') AS INTEGER) > e.\"end\" isPast FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE "+favouriteTitleQuery+" ORDER BY isPast DESC, e.title ASC, e.startTimestamp ASC")
         epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
@@ -685,7 +685,7 @@ class O2tvgoDB:
     def getEpgRowsRecentlyWatched(self):
         if not self.tablesOK:
             return False
-        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isRecentlyWatched = ? ORDER BY \"start\" DESC",  (1, ))
+        self.cexec("SELECT e.*, ch.name AS channelName, CAST(strftime('%s','now') as integer) > e.\"end\" isPast FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isRecentlyWatched = ? ORDER BY isPast DESC, e.title ASC, \"start\" ASC",  (1, ))
         epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
@@ -706,7 +706,7 @@ class O2tvgoDB:
     def getEpgRowsWatchLater(self):
         if not self.tablesOK:
             return False
-        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isWatchLater = ? ORDER BY \"start\" DESC",  (1, ))
+        self.cexec("SELECT e.*, ch.name AS channelName, CAST(strftime('%s','now') as integer) > e.\"end\" isPast FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isWatchLater = ? ORDER BY isPast DESC, e.title ASC, \"start\" ASC",  (1, ))
         epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
@@ -727,7 +727,7 @@ class O2tvgoDB:
     def getEpgRowsInProgress(self):
         if not self.tablesOK:
             return False
-        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.inProgressTime > ? ORDER BY \"start\" DESC",  (0, ))
+        self.cexec("SELECT e.*, ch.name AS channelName, CAST(strftime('%s','now') as integer) > e.\"end\" isPast FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.inProgressTime > ? ORDER BY isPast DESC, e.title ASC, \"start\" ASC",  (0, ))
         epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
@@ -859,3 +859,34 @@ class O2tvgoDB:
         if not self.tablesOK:
             return False
         self.cexec("DELETE FROM favourites WHERE id = ?",  (rowID, ))
+    
+    def getEpgListCounts(self, silent=True):
+        if not self.tablesOK:
+            return False
+        sql = '''SELECT SUM(isInProgress) isInProgress, SUM(isRecentlyWatched) isRecentlyWatched, SUM(isWatchLater) isWatchLater, (SELECT COUNT(distinct title_pattern) FROM favourites) favourites 
+            FROM (
+                SELECT id, CASE WHEN inProgressTime > 0 THEN 1 ELSE 0 END isInProgress, CASE WHEN isRecentlyWatched > 0 THEN 1 ELSE 0 END isRecentlyWatched, CASE WHEN isWatchLater > 0 THEN 1 ELSE 0 END isWatchLater
+                FROM epg
+                WHERE inProgressTime > 0 OR isRecentlyWatched > 0 OR isWatchLater > 0
+        ) '''
+        self.cexec(sql)
+        all = self.cursor.fetchall()
+        rowcount = len(all)
+        if rowcount > 1:
+            self.logWarn("More than one row was returned in getEpgListCounts()!")
+        if rowcount == 0:
+            if not silent:
+                self.logWarn("No row was returned in getEpgListCounts()!")
+            return {
+                "isInProgress": 0, 
+                "isRecentlyWatched": 0, 
+                "isWatchLater": 0, 
+                "favourites": 0
+            }
+        r = all[0]
+        return {
+            "isInProgress": r[0], 
+            "isRecentlyWatched": r[1], 
+            "isWatchLater": r[2], 
+            "favourites": r[3]
+        }

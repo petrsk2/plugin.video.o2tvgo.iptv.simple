@@ -50,7 +50,7 @@
   <string id="30257">Another instance of '%s' is still running; not refreshing</string>
   <string id="30258">Starting refreshing of EPG</string>
   <string id="30259">Using previously downloaded EPG for channel '%s' (%d/%d)</string>
-  <string id="30260">Programme '%s' is in future!</string>
+  <string id="30260">Programme '%s' is in the future!</string>
   <string id="30261">Programme '%s' has not finished yet</string>
   <string id="30262">Function '%s' started</string>
   <string id="30263">'%s' file fresh enough and '%s' file old enough; not refreshing</string>
@@ -63,6 +63,11 @@
   <string id="30270">'%s' file saved successfully with additional epg</string>
   <string id="30271">No plugin related entries in file ('%s')</string>
   <string id="30272">Resuming programme '%s' from %s</string>
+  <string id="30273">'%s' has been added to Watch Later successfully</string>
+  <string id="30274">'%s' has been added to Favourites successfully</string>
+  <string id="30275">The item has been removed successfully</string>
+  <string id="30276">The item has been removed from Favourites successfully</string>
+  <string id="30277">The favourite item has been updated to '%s' successfully</string>
   
   <string id="30500">Error ocurred during runtime.</string>
   <string id="30501">Allow reporting of errors?</string>

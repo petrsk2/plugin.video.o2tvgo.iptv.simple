@@ -17,4 +17,5 @@
   <epg>
     <lingertime>4320</lingertime>
   </epg>
+  <seeksteps>10, 30, 60, 180, 300, 480, 600, 1800</seeksteps>
 </advancedsettings>

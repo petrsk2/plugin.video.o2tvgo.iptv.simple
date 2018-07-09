@@ -436,9 +436,13 @@ try:
     def dirListing(what=None):
         # This will give options to start saveEPG etc.
         if not what:
-            addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_icon_, isFolder=True)
-            #addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_, isFolder=True)
-            addDirectoryItem("Recently watched", _baseurl_+"?recentlywatched=1", image=_icon_, isFolder=True)
+            counts = _db_.getEpgListCounts()
+            if counts["isInProgress"] > 0:
+                addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_icon_, isFolder=True)
+            if counts["isWatchLater"] > 0:
+                addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_, isFolder=True)
+            if counts["isRecentlyWatched"] > 0:
+                addDirectoryItem("Recently watched", _baseurl_+"?recentlywatched=1", image=_icon_, isFolder=True)
             addDirectoryItem("Favourites", _baseurl_+"?favourites=1", image=_icon_, isFolder=True)
             addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_, isFolder=False)
             addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_, isFolder=False)
@@ -447,66 +451,98 @@ try:
             cacheToDisc=False
             #cacheToDisc=True
             if what=="inProgress":
-                itemsRows = _db_.getEpgRowsInProgress()
+                itemRows = _db_.getEpgRowsInProgress()
             elif what=="favourites":
-                itemsRows = _db_.getEpgRowsFavourites()
+                itemRows = _db_.getEpgRowsFavourites()
             elif what=="recentlyWatched":
-                itemsRows = _db_.getEpgRowsRecentlyWatched()
+                itemRows = _db_.getEpgRowsRecentlyWatched()
             elif what == "watchLater":
-                itemsRows = _db_.getEpgRowsWatchLater()
+                itemRows = _db_.getEpgRowsWatchLater()
             elif what == "favouritesKeywords":
-                itemsRows = _db_.getFavourites()
+                itemRows = _db_.getFavourites()
             else:
-                itemsRows = []
-            if itemsRows:
-                for items in itemsRows:
+                itemRows = []
+            if itemRows:
+                for item in itemRows:
                     if what=="favouritesKeywords":
                         # TODO: editing, removing, adding a new one from epg detail
-                        addDirectoryItem(items["title_pattern"], _baseurl_+"?favouritekeywordedit=1&rowid="+str(items["id"]), isFolder=False, calledFromList=what, items=items)
+                        addDirectoryItem(item["title_pattern"], _baseurl_+"?favouritekeywordedit=1&rowid="+str(item["id"]), isFolder=False, calledFromList=what, item=item)
                     else:
-                        info = ""
+                        itemInfo = ""
+                        progressInfo = ""
+                        hasProgress = False
                         if what=="inProgress":
-                            inProgressTime = items["inProgressTime"]
-                            length = items["end"] - items["start"]
+                            inProgressTime = item["inProgressTime"]
+                            length = item["end"] - item["start"]
                             sTimeProgress = time.strftime('%H:%M:%S', time.gmtime(inProgressTime))
                             sTimeLength = time.strftime('%H:%M:%S', time.gmtime(length))
-                            info = sTimeProgress+" / "+sTimeLength+" | "
-                        itemTitle = items["channelName"]+": "+items["title"]+" | "+info+_timestampToNiceDateTime(items["start"], items["end"])
-                        if items['fanart_image']:
-                            icon=items["fanart_image"]
+                            progressInfo = sTimeProgress+" / "+sTimeLength+" | "
+                        elif "inProgressTime" in item and item["inProgressTime"] > 0:
+                            hasProgress = True
+                            inProgressTime = item["inProgressTime"]
+                            length = item["end"] - item["start"]
+                            sTimeProgress = time.strftime('%H:%M:%S', time.gmtime(inProgressTime))
+                            sTimeLength = time.strftime('%H:%M:%S', time.gmtime(length))
+                        olderThan = (int(time.time()) -  (2*24*3600))
+                        ttlSeconds = item["end"] - olderThan
+                        ttlMinus = ""
+                        if ttlSeconds < 0:
+                            ttlMinus = "-"
+                            ttlSeconds = 0-ttlSeconds
+                        if ttlSeconds >= (24*3600):
+                            ttlSeconds -= (24*3600) # Because time.gmtime() shows day 0 as 1 (date)
+                            ttlFormat = '%-dd %H:%M'
+                        else:
+                            ttlFormat = '0d %H:%M'
+                        ttl = ttlMinus+time.strftime(ttlFormat, time.gmtime(ttlSeconds))
+                        airingTime = _timestampToNiceDateTime(item["start"], item["end"])
+                        itemTitle = item["channelName"]+": "+item["title"]+" | "+progressInfo+airingTime + " | TTL: "+ttl
+                        itemInfo += airingTime+"\n"
+                        if progressInfo or hasProgress:
+                            itemInfo += "Progress: "+sTimeProgress+" / "+sTimeLength+"\n"
+                        itemInfo += "TTL: "+ttl+"\n"
+                        itemInfo += "\n"
+                        if item['fanart_image']:
+                            icon=item["fanart_image"]
                         else:
                             icon=_icon_
-                        addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(items["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=items["title"],  items=items, calledFromList=what)
+                        addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(item["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=item["title"],  item=item, calledFromList=what, itemInfo=itemInfo)
             if what=="favourites":
                 addDirectoryItem("Edit keywords", _baseurl_+"?favouriteskeywords=1", image=_icon_, isFolder=True)
             if what=="favouritesKeywords":
-                addDirectoryItem("Add keyword", _baseurl_+"?favouritekeywordadd=1", image=_icon_, isFolder=False)
+                addDirectoryItem("[Add keyword]", _baseurl_+"?favouritekeywordadd=1", image=_icon_, isFolder=False)
             
         xbmcplugin.endOfDirectory(_handle_, updateListing=False, cacheToDisc=cacheToDisc)
 
-    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_, image=None, isFolder=True, calledFromList=None, items=None):
+    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_, image=None, isFolder=True, calledFromList=None, item=None, itemInfo=None):
         li = xbmcgui.ListItem(label)
         
         videoinfo={}
-        if calledFromList and calledFromList != "inProgress" and "isRecentlyWatched" in items and items["isRecentlyWatched"]:
+        if calledFromList and calledFromList != "inProgress" and "isRecentlyWatched" in item and item["isRecentlyWatched"]:
             videoinfo["playcount"] = 1
         if len(videoinfo) > 0:
             li.setInfo('video', videoinfo)
 
         actionList = []
-        if items and "end" in items and "channelID" in items:
-            previousProgrammeEpg = _db_.getEpgRowByEnd(end=items["start"], channelID=items["channelID"])
-            if previousProgrammeEpg and "start" in previousProgrammeEpg and "end" in previousProgrammeEpg and "id" in previousProgrammeEpg:
-                offsetFromEnd = 10*60
-                length = (previousProgrammeEpg["end"] - previousProgrammeEpg["start"])
-                if (length)>offsetFromEnd:
-                    startOffset = length - offsetFromEnd
-                else:
-                    startOffset = 0
-                actionList.append(('Play previous programme (last 10 minutes)','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(previousProgrammeEpg["id"])+'&startoffset='+str(startOffset)+')'))
+        timeNow = time.time()
+        if item and len(item)>0:
+            if "end" in item and item["end"] < timeNow:
+                if item and "end" in item and "channelID" in item:
+                    previousProgrammeEpg = _db_.getEpgRowByEnd(end=item["start"], channelID=item["channelID"])
+                    if previousProgrammeEpg and "start" in previousProgrammeEpg and "end" in previousProgrammeEpg and "id" in previousProgrammeEpg:
+                        offsetFromEnd = 10*60
+                        length = (previousProgrammeEpg["end"] - previousProgrammeEpg["start"])
+                        if (length)>offsetFromEnd:
+                            startOffset = length - offsetFromEnd
+                        else:
+                            startOffset = 0
+                        actionList.append(('Play previous programme (last 10 minutes)','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(previousProgrammeEpg["id"])+'&startoffset='+str(startOffset)+')'))
+            elif "title" in item:
+                li.setLabel("("+label+")")
+                url=_baseurl_+"?notification_programmeinfuture=1&programmetitle="+item["title"]
         if calledFromList and calledFromList == "favouritesKeywords":
-            actionList.append(('Edit','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(items["id"])+')'))
-            actionList.append(('Remove','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(items["id"])+')'))
+            actionList.append(('Edit','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(item["id"])+')'))
+            actionList.append(('Remove','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(item["id"])+')'))
             li.addContextMenuItems(actionList)
             xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
             return
@@ -515,29 +551,31 @@ try:
         liVideo = {'title': title}
         if plot:
             liVideo['plot'] = plot
-        if items:
-            if "fanart_image" in items and items["fanart_image"] and len(items["fanart_image"]) > 0:
+        if item:
+            if "fanart_image" in item and item["fanart_image"] and len(item["fanart_image"]) > 0:
                 li.setArt({
-                  'icon': items["fanart_image"],
-                  "fanart": items["fanart_image"],
-                  "poster": items["fanart_image"]
+                  'icon': item["fanart_image"],
+                  "fanart": item["fanart_image"],
+                  "poster": item["fanart_image"]
                 })
-            if "plot" in items and items["plot"] and len(items["plot"]) > 0:
-                liVideo['plot'] = items['plot']
-            if "plotoutline" in items and items["plotoutline"] and len(items["plotoutline"]) > 0:
-                liVideo['plotoutline'] = items['plotoutline']
-            if "genre" in items and items["genre"]:
-                liVideo['genre'] = items["genre"]
-            li.addStreamInfo('video', {'duration': items["end"]-items["start"]})
+            if "plot" in item and item["plot"] and len(item["plot"]) > 0:
+                liVideo['plot'] = item['plot']
+            if "plotoutline" in item and item["plotoutline"] and len(item["plotoutline"]) > 0:
+                liVideo['plotoutline'] = item['plotoutline']
+            if "genre" in item and item["genre"]:
+                liVideo['genre'] = item["genre"]
+            li.addStreamInfo('video', {'duration': item["end"]-item["start"]})
             
         if calledFromList:
-            if calledFromList != "favourites":
-                if calledFromList == "inProgress":
-                    actionList.append(
-                        ('Play from beginning','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(items["id"])+')')
-                    )
+            if calledFromList == "inProgress" or (item and len(item)>0 and "inProgressTime" in item and item["inProgressTime"] > 0):
+                li.setProperty('StartOffset', str(item["inProgressTime"]))
+                li.setProperty("ResumeTime", str(item["inProgressTime"]))
                 actionList.append(
-                    ('Remove from this list','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(items["id"])+')')
+                    ('Play from beginning','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(item["id"])+')')
+                )
+            if calledFromList != "favourites":
+                actionList.append(
+                    ('Remove from this list','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(item["id"])+')')
                 )
         if actionList:
             li.addContextMenuItems(actionList)
@@ -545,10 +583,12 @@ try:
         if image:
             li.setThumbnailImage(image)
         li.setIconImage(icon)
+        if itemInfo:
+            liVideo['plot'] = itemInfo+liVideo['plot']
         li.setInfo("video", liVideo)
         xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
-    def favouriteKeywordAction(action, rowID=None):
+    def favouriteKeywordAction(action, rowID=None, titlePattern=None):
         if action=="edit":
             if not rowID:
                 return False
@@ -558,16 +598,26 @@ try:
                 if not titlePatternNew:
                     return False
                 _db_.updateFavourite(rowID=rowID, title_pattern=titlePatternNew)
+                notificationInfo(_lang_(30277) % titlePatternNew)
         elif action=="delete":
             if not rowID:
                 return False
-            _db_.deleteFavourite(rowID=rowID)
+            _db_.removeFavourite(rowID=rowID)
+            notificationInfo(_lang_(30276))
         elif action=="add":
-            titlePatternNew = xbmcgui.Dialog().input("Add favourite", defaultt="", type=xbmcgui.INPUT_ALPHANUM)
+            defaultVal = ""
+            if titlePattern:
+                defaultVal = titlePattern
+            titlePatternNew = xbmcgui.Dialog().input("Add favourite", defaultt=defaultVal, type=xbmcgui.INPUT_ALPHANUM)
             if not titlePatternNew:
                 return False
             _db_.addFavourite(title_pattern=titlePatternNew)
+            notificationInfo(_lang_(30274) % titlePatternNew)
         xbmc.executebuiltin('Container.Refresh')
+    
+    def showNotification(type, programmeTitle=None):
+        if type == "programmeInFuture" and programmeTitle:
+            notificationWarning(_lang_(30260) % programmeTitle, sound=False, force=True)
     
     def removeEpgFromList(removeFromList, epgRowID):
         logDbg("Removing epg with id "+str(epgRowID)+" from list "+removeFromList)
@@ -582,6 +632,7 @@ try:
         listColumn = listColDict[removeFromList]
         _db_.removeEpgFromList(epgRowID, listColumn)
         xbmc.executebuiltin('Container.Refresh')
+        notificationInfo(_lang_(30275))
         #dirListing(removeFromList)
 
     def showLogs():
@@ -1359,6 +1410,20 @@ try:
         timestamp = timeDelta.total_seconds() + epgShift
         return int(timestamp)
 
+    def addToWatchLater(programmeTitle, startTime, channelName, startDate):
+        channelRow = _db_.getChannelRow(nameOld = channelName)
+        if not channelRow:
+            notificationError(_lang_(30505))
+            return
+        timestamp = getTimestampFromDayTime(startDate, startTime)
+        if not timestamp:
+            notificationError(_lang_(30504))
+            logDbg([startDate, startTime, channelName])
+            return
+        epg = _db_.getEpgRowByStart(start = timestamp, channelID = channelRow["id"])
+        _db_.updateEpg(id = epg["id"], channelID = channelRow["id"], isWatchLater = 1)
+        notificationInfo(_lang_(30273) % epg["title"])
+    
     def playChannelFromEpg(startTime, startDate, channelName, channelNumber, playingCurrently=False, startTimestamp=None, channelIndex=None, epgRowID=None, calledFromList=None, startOffset = 0):
         player = xbmc.Player()
 
@@ -1376,7 +1441,7 @@ try:
             if epg and "channelKey" in epg:
                 channelKey = epg["channelKey"]
                 channelID = epg["channelID"]
-                if startOffset == 0 and calledFromList == "inProgress" and "inProgressTime" in epg and epg["inProgressTime"] and epg["inProgressTime"] > 5:
+                if not startOffset and calledFromList and "inProgressTime" in epg and epg["inProgressTime"] and epg["inProgressTime"] > 5:
                     startOffset = epg["inProgressTime"] - 5
                 elif calledFromList == "recentlyWatched":
                     watchedCount = 1
@@ -1603,9 +1668,12 @@ try:
     favouritekeywordedit=None
     favouritekeyworddelete=None
     favouritekeywordadd=None
+    addtowatchlater=None
+    programmetitle=None
     inprogr=None
     recentlywatched=None
     watchlater=None
+    notification_programmeinfuture=None
 
     params=get_params()
     assign_params(params)
@@ -1651,7 +1719,12 @@ try:
     elif favouritekeyworddelete:
         favouriteKeywordAction(action="delete", rowID=rowid)
     elif favouritekeywordadd:
-        favouriteKeywordAction(action="add")
+        favouriteKeywordAction(action="add", titlePattern=programmetitle)
+    elif addtowatchlater:
+        #addtowatchlater=1&programmetitle=$INFO[ListItem.Title]&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&startdate=$INFO[ListItem.StartDate]
+        addToWatchLater(programmeTitle=programmetitle, startTime=starttime, channelName=channelname, startDate=startdate)
+    elif notification_programmeinfuture:
+        showNotification(type="programmeInFuture", programmeTitle=programmetitle)
     else:
         dirListing()
     _db_.closeDB()

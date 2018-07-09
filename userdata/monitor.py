@@ -218,7 +218,7 @@ class MyPlayer(xbmc.Player) :
                 lengthMin = length / 60
                 positionMinutes = position / 60
                 positionPercent = 10000 * position / length * 0.01
-                question = 'Do you want to switch to the currently playing programme on '+nextProgramme["channelKey"]+': '+nextProgramme["title"] + ' (' + str(positionMinutes) + ' / ' + str(lengthMin) + ' min [' + str(positionPercent) + '%])?'
+                question = 'Do you want to switch to the currently playing programme on '+nextProgramme["channelName"]+': '+nextProgramme["title"] + ' (' + str(positionMinutes) + ' / ' + str(lengthMin) + ' min [' + str(positionPercent) + '%])?'
                 response = xbmcgui.Dialog().yesno(_scriptname_, question, yeslabel='Yes', nolabel='No')
 
                 if response:
