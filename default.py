@@ -433,7 +433,7 @@ try:
 #        aCh2 = ch2.split('/')
 #        return aCh1[3] == aCh2[3]
 
-    def dirListing(what=None):
+    def dirListing(what=None, refresh=0, calledFrom=None):
         # This will give options to start saveEPG etc.
         if not what:
             counts = _db_.getEpgListCounts()
@@ -496,7 +496,14 @@ try:
                             ttlFormat = '0d %H:%M'
                         ttl = ttlMinus+time.strftime(ttlFormat, time.gmtime(ttlSeconds))
                         airingTime = _timestampToNiceDateTime(item["start"], item["end"])
-                        itemTitle = item["channelName"]+": "+item["title"]+" | "+progressInfo+airingTime + " | TTL: "+ttl
+                        if calledFrom == "home":
+                            if what == "favourites" and "isRecentlyWatched" in item and item["isRecentlyWatched"] > 0:
+                                continue
+                            itemTitle = item["channelName"]
+                            if "end" in item and item["end"] >= time.time():
+                                continue
+                        else:
+                            itemTitle = item["channelName"]+": "+item["title"]+" | "+progressInfo+airingTime + " | TTL: "+ttl
                         itemInfo += airingTime+"\n"
                         if progressInfo or hasProgress:
                             itemInfo += "Progress: "+sTimeProgress+" / "+sTimeLength+"\n"
@@ -507,12 +514,17 @@ try:
                         else:
                             icon=_icon_
                         addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(item["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=item["title"],  item=item, calledFromList=what, itemInfo=itemInfo)
-            if what=="favourites":
+            if what=="favourites" and calledFrom != "home":
                 addDirectoryItem("Edit keywords", _baseurl_+"?favouriteskeywords=1", image=_icon_, isFolder=True)
             if what=="favouritesKeywords":
                 addDirectoryItem("[Add keyword]", _baseurl_+"?favouritekeywordadd=1", image=_icon_, isFolder=False)
-            
-        xbmcplugin.endOfDirectory(_handle_, updateListing=False, cacheToDisc=cacheToDisc)
+        
+        updateListing = False
+        if refresh:
+            updateListing = True
+        xbmcplugin.endOfDirectory(_handle_, cacheToDisc=cacheToDisc, updateListing = updateListing)
+        if refresh:
+            xbmc.executebuiltin('Container.Refresh')
 
     def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_, image=None, isFolder=True, calledFromList=None, item=None, itemInfo=None):
         li = xbmcgui.ListItem(label)
@@ -588,6 +600,15 @@ try:
         li.setInfo("video", liVideo)
         xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
+    def refreshHome(section=None):
+        if not section:
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatched', str(int(time.time())))
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeInProgress', str(int(time.time())))
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatchLater', str(int(time.time())))
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeFavourites', str(int(time.time())))
+        else:
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, str(int(time.time())))
+
     def favouriteKeywordAction(action, rowID=None, titlePattern=None):
         if action=="edit":
             if not rowID:
@@ -614,6 +635,7 @@ try:
             _db_.addFavourite(title_pattern=titlePatternNew)
             notificationInfo(_lang_(30274) % titlePatternNew)
         xbmc.executebuiltin('Container.Refresh')
+        refreshHome("Favourites")
     
     def showNotification(type, programmeTitle=None):
         if type == "programmeInFuture" and programmeTitle:
@@ -627,13 +649,19 @@ try:
             "recentlyWatched": "isRecentlyWatched", 
             "watchLater": "isWatchLater"
         }
+        listHomeSectionDict = {
+            "inProgress": "InProgress", 
+            "favourites": "Favourites", 
+            "recentlyWatched": "Watched", 
+            "watchLater": "WatchLater"
+        }
         if not removeFromList in listColDict:
             return
         listColumn = listColDict[removeFromList]
         _db_.removeEpgFromList(epgRowID, listColumn)
         xbmc.executebuiltin('Container.Refresh')
         notificationInfo(_lang_(30275))
-        #dirListing(removeFromList)
+        refreshHome(listHomeSectionDict[removeFromList])
 
     def showLogs():
         if os.path.exists(_logFilePath_):
@@ -899,6 +927,7 @@ try:
                 #logNtc(channel["name"]+" 1", idSuffix=logIdSuffix)
             olderThan = (timestampNow -  (2*24*3600))
             _db_.deleteOldEpg(endBefore = olderThan)
+            refreshHome()
             #logDbg("EPG refresh - channel "+channel["name"]+": checkpoint 1", idSuffix=logIdSuffix)
             epgDict = _db_.getEpgRows(channel["id"])
             if not epgDict:
@@ -1091,13 +1120,16 @@ try:
         # Prevent restarting by another thread #
         _db_.setLock("lastRestart",  time.time())
         dialog_id = xbmcgui.getCurrentWindowId()
-        if dialog_id == 10100 or (dialog_id >= 10600 and dialog_id < 10800):
-            xbmc.executebuiltin("ActivateWindow(home)")
+        reopen = False
+        if dialog_id == 10100 or (dialog_id >= 10600 and dialog_id < 10800) or dialog_id == 10000:
+            xbmc.executebuiltin("ActivateWindow(10025, 'plugin://plugin.video.o2tvgo.iptv.simple',return)")
+            reopen = True
             xbmc.sleep(1000)
 
         pluginDetails = _jsonRPC_._getAddonDetails("pvr.iptvsimple")
         if pluginDetails:
             #logDbg("Plugin details response: "+_toString(pluginDetails))
+            refreshHome()
             enabled = pluginDetails["enabled"]
             if enabled:
                 logNtc("Stopping IPTV Simple PVR manager")
@@ -1111,14 +1143,20 @@ try:
                         else:
                             logNtc(_lang_(30253))
                         _db_.setLock("lastRestart",  time.time())
+                        if reopen:
+                            xbmc.executebuiltin("ActivateWindow("+str(dialog_id)+")")
                         return True
                     else:
                         # Couldn't enable the plugin => Queue for restart #
                         _db_.setLock("lastRestart",  0)
+                        if reopen:
+                            xbmc.executebuiltin("ActivateWindow("+str(dialog_id)+")")
                         return False
                 else:
                     # Couldn't disable the plugin => Queue for restart #
                     _db_.setLock("lastRestart",  0)
+                    if reopen:
+                        xbmc.executebuiltin("ActivateWindow("+str(dialog_id)+")")
                     return False
             else:
                 # plugin is disabled
@@ -1131,14 +1169,20 @@ try:
                     else:
                         logNtc(_lang_(30254))
                     _db_.setLock("lastRestart",  time.time())
+                    if reopen:
+                        xbmc.executebuiltin("ActivateWindow("+str(dialog_id)+")")
                     return True
                 else:
                     # Couldn't enable the plugin => Queue for restart #
                     _db_.setLock("lastRestart",  0)
+                    if reopen:
+                        xbmc.executebuiltin("ActivateWindow("+str(dialog_id)+")")
                     return False
         else:
             # Couldn't get plugin details => Queue for restart #
             _db_.setLock("lastRestart",  0)
+            if reopen:
+                xbmc.executebuiltin("ActivateWindow("+str(dialog_id)+")")
             return False
 
     def _merge_additional_epg_xml(et_tv, test=False):
@@ -1423,6 +1467,7 @@ try:
         epg = _db_.getEpgRowByStart(start = timestamp, channelID = channelRow["id"])
         _db_.updateEpg(id = epg["id"], channelID = channelRow["id"], isWatchLater = 1)
         notificationInfo(_lang_(30273) % epg["title"])
+        refreshHome("WatchLater")
     
     def playChannelFromEpg(startTime, startDate, channelName, channelNumber, playingCurrently=False, startTimestamp=None, channelIndex=None, epgRowID=None, calledFromList=None, startOffset = 0):
         player = xbmc.Player()
@@ -1528,6 +1573,7 @@ try:
         _db_.clearCurrentlyPlaying()
         _db_.clearNextProgramme()
         _db_.updateEpg(id = epg["id"], channelID = channelID, isCurrentlyPlaying = 1, inProgressTime = 1)
+        refreshHome("InProgress")
 
         logDbg("Looking for next programme")
         timestampNext = int(epg["end"])
@@ -1674,6 +1720,8 @@ try:
     recentlywatched=None
     watchlater=None
     notification_programmeinfuture=None
+    refresh=0
+    refreshhome=None
 
     params=get_params()
     assign_params(params)
@@ -1703,17 +1751,17 @@ try:
     elif test:
         _test()
     elif recentlywatched:
-        dirListing("recentlyWatched")
+        dirListing(what="recentlyWatched", refresh=refresh, calledFrom=calledfrom)
     elif favourites:
-        dirListing("favourites")
-    elif favouriteskeywords:
-        dirListing("favouritesKeywords")
+        dirListing(what="favourites", refresh=refresh, calledFrom=calledfrom)
     elif inprogr:
-        dirListing("inProgress")
+        dirListing(what="inProgress", refresh=refresh, calledFrom=calledfrom)
     elif watchlater:
-        dirListing("watchLater")
+        dirListing(what="watchLater", refresh=refresh, calledFrom=calledfrom)
     elif removefromlist:
         removeEpgFromList(removefromlist, epgrowid)
+    elif favouriteskeywords:
+        dirListing("favouritesKeywords")
     elif favouritekeywordedit:
         favouriteKeywordAction(action="edit", rowID=rowid)
     elif favouritekeyworddelete:
@@ -1725,6 +1773,10 @@ try:
         addToWatchLater(programmeTitle=programmetitle, startTime=starttime, channelName=channelname, startDate=startdate)
     elif notification_programmeinfuture:
         showNotification(type="programmeInFuture", programmeTitle=programmetitle)
+    elif refreshhome:
+        refreshHome()
+        #xbmc.executebuiltin('Container.Refresh')
+        notificationInfo("Refresh done")
     else:
         dirListing()
     _db_.closeDB()

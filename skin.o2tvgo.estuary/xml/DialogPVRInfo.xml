@@ -66,17 +66,31 @@
           <onup>61</onup>
           <ondown>61</ondown>
           <include content="InfoDialogButton">
+                        <param name="id" value="7" />
+                        <param name="label" value="Play" />
+                        <param name="icon" value="icons/infodialogs/play.png" />
+                        <param name="onclick_1" value="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&channelnumber=$INFO[ListItem.ChannelNumber]&startdate=$INFO[ListItem.StartDate])" />
+                        <param name="visible" value="System.hasAddon(plugin.video.o2tvgo.iptv.simple)" />
+          </include>
+          <include content="InfoDialogButton">
             <param name="id" value="5" />
             <param name="icon" value="icons/infodialogs/launch.png" />
             <param name="label" value="$LOCALIZE[19165]" />
             <param name="visible" value="Window.IsActive(PVRGuideInfo)" />
           </include>
           <include content="InfoDialogButton">
-                        <param name="id" value="7" />
-                        <param name="label" value="Play From Beginning" />
-                        <param name="icon" value="icons/infodialogs/launch.png" />
-                        <param name="onclick_1" value="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&channelnumber=$INFO[ListItem.ChannelNumber]&startdate=$INFO[ListItem.StartDate])" />
-                        <param name="visible" value="!ListItem.IsResumable" />
+                        <param name="id" value="2" />
+                        <param name="label" value="Watch later" />
+                        <param name="icon" value="icons/infodialogs/timer.png" />
+                        <param name="onclick_1" value="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?addtowatchlater=1&programmetitle=$INFO[ListItem.Title]&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&startdate=$INFO[ListItem.StartDate])" />
+                        <param name="visible" value="System.hasAddon(plugin.video.o2tvgo.iptv.simple)" />
+          </include>
+          <include content="InfoDialogButton">
+                        <param name="id" value="3" />
+                        <param name="label" value="Add to favourites" />
+                        <param name="icon" value="icons/sidemenu/favourites.png" />
+                        <param name="onclick_1" value="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordadd=1&programmetitle=$INFO[ListItem.Title])" />
+                        <param name="visible" value="System.hasAddon(plugin.video.o2tvgo.iptv.simple)" />
           </include>
           <include content="InfoDialogButton">
             <param name="id" value="8" />

@@ -122,6 +122,9 @@ class O2tvgoDBMini:
     def setIsCurrentlyPlayingTo0(self):
         self.cexec("UPDATE epg SET isCurrentlyPlaying = ? WHERE isCurrentlyPlaying = ?",  (0, 1))
     
+    def setIsWatchLaterTo0(self, epgID):
+        self.cexec("UPDATE epg SET isWatchLater = ? WHERE id = ?",  (0, epgID))
+
     def setIsRecentlyWatchedTo1(self, epgID):
         self.cexec("UPDATE epg SET isRecentlyWatched = ? WHERE id = ?",  (1, epgID))
     
@@ -282,6 +285,15 @@ def _logDbg(msg, level=xbmc.LOGDEBUG, logIdSuffix=""):
     global _logId_
     xbmc.log("[%s] %s"%(_logId_+logIdSuffix,msg.__str__()), level)
 
+def o2TVGoRefreshHome(section=None):
+    if not section:
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatched', str(int(time.time())))
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeInProgress', str(int(time.time())))
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatchLater', str(int(time.time())))
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeFavourites', str(int(time.time())))
+    else:
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, str(int(time.time())))
+
 def isPlayingVideoO2TVGO():
     currentlyPlaying = _db_.getCurrentlyPlayingEpg()
     _db_.closeDB()
@@ -293,9 +305,13 @@ def isPlayingVideoO2TVGO():
         position = int(xbmc.Player().getTime())
         length = int(currentlyPlaying['end']) - int(currentlyPlaying['start'])
         #_logDbg(msg='isPlayingVideoO2TVGO: '+str(length)+", "+str(position)+", "+str(timestampNow)+", "+currentlyPlaying["channelName"]+", "+str(currentlyPlaying["title"]), logIdSuffix="/isPlayingVideoO2TVGO()")
-        if length - position < (10*30):
+        if length - position < (10*60):
             _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  0)
             _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
+            _db_.setIsWatchLaterTo0(currentlyPlaying["id"])
+            o2TVGoRefreshHome("InProgress")
+            o2TVGoRefreshHome("Watched")
+            o2TVGoRefreshHome("WatchLater")
         else:
             _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  position)
         _db_.closeDB()

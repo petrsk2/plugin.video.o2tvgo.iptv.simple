@@ -448,19 +448,40 @@
 				<thumb>icons/pvr/epg.png</thumb>
 			</item>
 			<item>
+                    <label>Edit favourites</label>
+                    <onclick>ActivateWindow(10025, "plugin://plugin.video.o2tvgo.iptv.simple?favouriteskeywords=1",return)</onclick>
+                    <thumb>icons/sidemenu/favourites.png</thumb>
+                    <visible>System.hasAddon(plugin.video.o2tvgo.iptv.simple)</visible>
+			</item>
+			<item>
+                    <label>Open O2TVGo</label>
+                    <onclick>ActivateWindow(10025, "plugin://plugin.video.o2tvgo.iptv.simple",return)</onclick>
+                    <thumb>icons/settings/addons.png</thumb>
+                    <visible>System.hasAddon(plugin.video.o2tvgo.iptv.simple)</visible>
+			</item>
+			<item>
+                    <label>Refresh</label>
+                    <onclick>RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?refreshhome=1)</onclick>
+                    <thumb>icons/sidemenu/disc.png</thumb>
+                    <visible>System.hasAddon(plugin.video.o2tvgo.iptv.simple)</visible>
+			</item>
+			<item>
 				<label>$LOCALIZE[19017]</label>
 				<onclick>ActivateWindow($PARAM[pvr_type]Recordings)</onclick>
 				<thumb>icons/pvr/recording.png</thumb>
+                <visible>False</visible>
 			</item>
 			<item>
 				<label>$LOCALIZE[19040]</label>
 				<onclick>ActivateWindow($PARAM[pvr_type]Timers)</onclick>
 				<thumb>icons/pvr/timer.png</thumb>
+                <visible>False</visible>
 			</item>
 			<item>
 				<label>$LOCALIZE[19138]</label>
 				<onclick>ActivateWindow($PARAM[pvr_type]TimerRules)</onclick>
 				<thumb>icons/pvr/timer-rule.png</thumb>
+                <visible>False</visible>
 			</item>
 			<item>
 				<label>$LOCALIZE[137]</label>
