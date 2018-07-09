@@ -447,37 +447,36 @@ try:
             cacheToDisc=False
             #cacheToDisc=True
             if what=="inProgress":
-                epgRows = _db_.getEpgRowsInProgress()
+                itemsRows = _db_.getEpgRowsInProgress()
             elif what=="favourites":
-                epgRows = _db_.getEpgRowsFavourites()
+                itemsRows = _db_.getEpgRowsFavourites()
             elif what=="recentlyWatched":
-                epgRows = _db_.getEpgRowsRecentlyWatched()
+                itemsRows = _db_.getEpgRowsRecentlyWatched()
             elif what == "watchLater":
-                epgRows = _db_.getEpgRowsWatchLater()
+                itemsRows = _db_.getEpgRowsWatchLater()
             elif what == "favouritesKeywords":
-                epgRows = _db_.getFavourites()
+                itemsRows = _db_.getFavourites()
             else:
-                epgRows = {}
-            if epgRows:
-                for epgRowKey in epgRows.iterkeys():
-                    epg = epgRows[epgRowKey]
+                itemsRows = []
+            if itemsRows:
+                for items in itemsRows:
                     if what=="favouritesKeywords":
-                        # TODO: editing, removing, adding a new one on the fly and from epg detail
-                        addDirectoryItem(epg["title_pattern"], _baseurl_+"?favouritekeywordedit=1&rowid="+str(epg["id"]), isFolder=False, calledFromList=what, items=epg)
+                        # TODO: editing, removing, adding a new one from epg detail
+                        addDirectoryItem(items["title_pattern"], _baseurl_+"?favouritekeywordedit=1&rowid="+str(items["id"]), isFolder=False, calledFromList=what, items=items)
                     else:
                         info = ""
                         if what=="inProgress":
-                            inProgressTime = epg["inProgressTime"]
-                            length = epg["end"] - epg["start"]
+                            inProgressTime = items["inProgressTime"]
+                            length = items["end"] - items["start"]
                             sTimeProgress = time.strftime('%H:%M:%S', time.gmtime(inProgressTime))
                             sTimeLength = time.strftime('%H:%M:%S', time.gmtime(length))
                             info = sTimeProgress+" / "+sTimeLength+" | "
-                        itemTitle = epg["channelName"]+": "+epg["title"]+" | "+info+_timestampToNiceDateTime(epg["start"], epg["end"])
-                        if epg['fanart_image']:
-                            icon=epg["fanart_image"]
+                        itemTitle = items["channelName"]+": "+items["title"]+" | "+info+_timestampToNiceDateTime(items["start"], items["end"])
+                        if items['fanart_image']:
+                            icon=items["fanart_image"]
                         else:
                             icon=_icon_
-                        addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(epg["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=epg["title"],  epg=epg, calledFromList=what)
+                        addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(items["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=items["title"],  items=items, calledFromList=what)
             if what=="favourites":
                 addDirectoryItem("Edit keywords", _baseurl_+"?favouriteskeywords=1", image=_icon_, isFolder=True)
             if what=="favouritesKeywords":
@@ -485,13 +484,29 @@ try:
             
         xbmcplugin.endOfDirectory(_handle_, updateListing=False, cacheToDisc=cacheToDisc)
 
-    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_, image=None, isFolder=True, epg=None, calledFromList=None, items=None):
+    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_, image=None, isFolder=True, calledFromList=None, items=None):
         li = xbmcgui.ListItem(label)
+        
+        videoinfo={}
+        if calledFromList and calledFromList != "inProgress" and "isRecentlyWatched" in items and items["isRecentlyWatched"]:
+            videoinfo["playcount"] = 1
+        if len(videoinfo) > 0:
+            li.setInfo('video', videoinfo)
+
+        actionList = []
+        if items and "end" in items and "channelID" in items:
+            previousProgrammeEpg = _db_.getEpgRowByEnd(end=items["start"], channelID=items["channelID"])
+            if previousProgrammeEpg and "start" in previousProgrammeEpg and "end" in previousProgrammeEpg and "id" in previousProgrammeEpg:
+                offsetFromEnd = 10*60
+                length = (previousProgrammeEpg["end"] - previousProgrammeEpg["start"])
+                if (length)>offsetFromEnd:
+                    startOffset = length - offsetFromEnd
+                else:
+                    startOffset = 0
+                actionList.append(('Play previous programme (last 10 minutes)','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(previousProgrammeEpg["id"])+'&startoffset='+str(startOffset)+')'))
         if calledFromList and calledFromList == "favouritesKeywords":
-            actionList = [
-                ('Edit','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(items["id"])+')'),
-                ('Remove','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(items["id"])+')')
-            ]
+            actionList.append(('Edit','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(items["id"])+')'))
+            actionList.append(('Remove','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(items["id"])+')'))
             li.addContextMenuItems(actionList)
             xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
             return
@@ -500,32 +515,32 @@ try:
         liVideo = {'title': title}
         if plot:
             liVideo['plot'] = plot
-        if epg:
-            if "fanart_image" in epg and epg["fanart_image"] and len(epg["fanart_image"]) > 0:
+        if items:
+            if "fanart_image" in items and items["fanart_image"] and len(items["fanart_image"]) > 0:
                 li.setArt({
-                  'icon': epg["fanart_image"],
-                  "fanart": epg["fanart_image"],
-                  "poster": epg["fanart_image"]
+                  'icon': items["fanart_image"],
+                  "fanart": items["fanart_image"],
+                  "poster": items["fanart_image"]
                 })
-            if "plot" in epg and epg["plot"] and len(epg["plot"]) > 0:
-                liVideo['plot'] = epg['plot']
-            if "plotoutline" in epg and epg["plotoutline"] and len(epg["plotoutline"]) > 0:
-                liVideo['plotoutline'] = epg['plotoutline']
-            if "genre" in epg and epg["genre"]:
-                liVideo['genre'] = epg["genre"]
-            li.addStreamInfo('video', {'duration': epg["end"]-epg["start"]})
+            if "plot" in items and items["plot"] and len(items["plot"]) > 0:
+                liVideo['plot'] = items['plot']
+            if "plotoutline" in items and items["plotoutline"] and len(items["plotoutline"]) > 0:
+                liVideo['plotoutline'] = items['plotoutline']
+            if "genre" in items and items["genre"]:
+                liVideo['genre'] = items["genre"]
+            li.addStreamInfo('video', {'duration': items["end"]-items["start"]})
             
         if calledFromList:
             if calledFromList != "favourites":
-                actionList = []
                 if calledFromList == "inProgress":
                     actionList.append(
-                        ('Play from beginning','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(epg["id"])+')')
+                        ('Play from beginning','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(items["id"])+')')
                     )
                 actionList.append(
-                    ('Remove from this list','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(epg["id"])+')')
+                    ('Remove from this list','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(items["id"])+')')
                 )
-                li.addContextMenuItems(actionList)
+        if actionList:
+            li.addContextMenuItems(actionList)
         
         if image:
             li.setThumbnailImage(image)
@@ -1344,7 +1359,7 @@ try:
         timestamp = timeDelta.total_seconds() + epgShift
         return int(timestamp)
 
-    def playChannelFromEpg(startTime, startDate, channelName, channelNumber, playingCurrently=False, startTimestamp=None, channelIndex=None, epgRowID=None, calledFromList=None):
+    def playChannelFromEpg(startTime, startDate, channelName, channelNumber, playingCurrently=False, startTimestamp=None, channelIndex=None, epgRowID=None, calledFromList=None, startOffset = 0):
         player = xbmc.Player()
 
         logNtc("playing from epg")
@@ -1355,14 +1370,13 @@ try:
         epg = None
         channelRow = None
         timestamp = None
-        startOffset = 0
         watchedCount = 0
         if epgRowID:
             epg = _db_.getEpgChannelRow(epgRowID)
             if epg and "channelKey" in epg:
                 channelKey = epg["channelKey"]
                 channelID = epg["channelID"]
-                if calledFromList == "inProgress" and "inProgressTime" in epg and epg["inProgressTime"] and epg["inProgressTime"] > 5:
+                if startOffset == 0 and calledFromList == "inProgress" and "inProgressTime" in epg and epg["inProgressTime"] and epg["inProgressTime"] > 5:
                     startOffset = epg["inProgressTime"] - 5
                 elif calledFromList == "recentlyWatched":
                     watchedCount = 1
@@ -1390,7 +1404,7 @@ try:
             channelID = channelRow["id"]
             if epg and "isRecentlyWatched" in epg and epg["isRecentlyWatched"] > 0:
                 watchedCount = 1
-            elif epg and "inProgressTime" in epg and epg["inProgressTime"] > 5:
+            elif startOffset == 0 and epg and "inProgressTime" in epg and epg["inProgressTime"] > 5:
                 startOffset = epg["inProgressTime"] - 5
         if not epg:
             notificationError(_lang_(30506))
@@ -1414,7 +1428,7 @@ try:
             channelUrlNew = getChannelStartoverUrl(epg, channelKey)
         else:
             if startOffset > 0:
-                notificationInfo(_lang_(30272) % (epg["title"], time.strftime('%H:%M:%S', time.gmtime(startOffset))))
+                notificationInfo(_lang_(30272) % (epg["title"], time.strftime('%H:%M:%S', time.gmtime(float(startOffset)))))
             else:
                 notificationInfo(_lang_(30255) % epg["title"])
             endTimestamp = epg["endTimestamp"]
@@ -1572,6 +1586,7 @@ try:
     showplayinginfo=None
     playfromepg=None
     epgrowid=None
+    startoffset=None
     calledfrom=None
     removefromlist=None
     starttime=None
@@ -1605,7 +1620,7 @@ try:
         if ok:
             ok = saveEPG(False, forceNotifications)
     elif playfromepg:
-        playChannelFromEpg(starttime, startdate, channelname, channelnumber, playingcurrently, starttimestamp, channelindex, epgRowID = epgrowid, calledFromList = calledfrom)
+        playChannelFromEpg(starttime, startdate, channelname, channelnumber, playingcurrently, starttimestamp, channelindex, epgRowID = epgrowid, calledFromList = calledfrom, startOffset = startoffset)
     elif iptv_simple_settings:
         _openIptvSimpleClientSettings()
     elif showlogs:

@@ -293,7 +293,7 @@ def isPlayingVideoO2TVGO():
         position = int(xbmc.Player().getTime())
         length = int(currentlyPlaying['end']) - int(currentlyPlaying['start'])
         #_logDbg(msg='isPlayingVideoO2TVGO: '+str(length)+", "+str(position)+", "+str(timestampNow)+", "+currentlyPlaying["channelName"]+", "+str(currentlyPlaying["title"]), logIdSuffix="/isPlayingVideoO2TVGO()")
-        if length - position < 30:
+        if length - position < (10*30):
             _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  0)
             _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
         else:

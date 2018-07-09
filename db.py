@@ -595,6 +595,42 @@ class O2tvgoDB:
             return epgDict
         return {}
 
+    def getEpgRowByEnd(self, end, channelID):
+        if not self.tablesOK:
+            return False
+        self.cexec("SELECT * FROM epg where \"end\" = ? AND channelID = ?",  (end, channelID))
+        epgDict = {}
+        epgColumns = self._getEpgColumns()
+        for row in self.cursor:
+            epgDict = {
+                "id": row["id"]
+            }
+            for col in epgColumns:
+                if row[col]:
+                    epgDict[col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[col] = 0
+                else:
+                    epgDict[col] = ""
+            return epgDict
+        # No luck #
+        self.cexec("SELECT * FROM epg where \"start\" < ? AND \"end\" > ? AND channelID = ?",  (end, end, channelID))
+        epgDict = {}
+        epgColumns = self._getEpgColumns()
+        for row in self.cursor:
+            epgDict = {
+                "id": row["id"]
+            }
+            for col in epgColumns:
+                if row[col]:
+                    epgDict[col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[col] = 0
+                else:
+                    epgDict[col] = ""
+            return epgDict
+        return {}
+
     def getEpgRows(self, channelID):
         if not self.tablesOK:
             return False
@@ -628,94 +664,86 @@ class O2tvgoDB:
             favouriteTitleQuery += "e.title LIKE '%"+row["title_pattern"]+"%'"
         if len(favouriteTitleQuery) == 0:
             return {}
-        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE "+favouriteTitleQuery)
-        i = 0
-        epgDict = {}
+        self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE "+favouriteTitleQuery+" ORDER BY e.startTimestamp ASC")
+        epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
-            index = row["start"]
-            epgDict[index] = {
+            epgDict = {
                 "id": row["id"],
                 "channelName": row["channelName"]
             }
             for col in epgColumns:
                 if row[col]:
-                    epgDict[index][col] = row[col]
+                    epgDict[col] = row[col]
                 elif col in self._getEpgColumnsInt():
-                    epgDict[index][col] = 0
+                    epgDict[col] = 0
                 else:
-                    epgDict[index][col] = ""
-            i += 1
-        return epgDict
+                    epgDict[col] = ""
+            epgList.append(epgDict)
+        return epgList
     
     def getEpgRowsRecentlyWatched(self):
         if not self.tablesOK:
             return False
         self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isRecentlyWatched = ? ORDER BY \"start\" DESC",  (1, ))
-        i = 0
-        epgDict = {}
+        epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
-            index = row["start"]
-            epgDict[index] = {
+            epgDict = {
                 "id": row["id"],
                 "channelName": row["channelName"]
             }
             for col in epgColumns:
                 if row[col]:
-                    epgDict[index][col] = row[col]
+                    epgDict[col] = row[col]
                 elif col in self._getEpgColumnsInt():
-                    epgDict[index][col] = 0
+                    epgDict[col] = 0
                 else:
-                    epgDict[index][col] = ""
-            i += 1
-        return epgDict
+                    epgDict[col] = ""
+            epgList.append(epgDict)
+        return epgList
     
     def getEpgRowsWatchLater(self):
         if not self.tablesOK:
             return False
         self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.isWatchLater = ? ORDER BY \"start\" DESC",  (1, ))
-        i = 0
-        epgDict = {}
+        epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
-            index = row["start"]
-            epgDict[index] = {
+            epgDict = {
                 "id": row["id"],
                 "channelName": row["channelName"]
             }
             for col in epgColumns:
                 if row[col]:
-                    epgDict[index][col] = row[col]
+                    epgDict[col] = row[col]
                 elif col in self._getEpgColumnsInt():
-                    epgDict[index][col] = 0
+                    epgDict[col] = 0
                 else:
-                    epgDict[index][col] = ""
-            i += 1
-        return epgDict
+                    epgDict[col] = ""
+            epgList.append(epgDict)
+        return epgList
     
     def getEpgRowsInProgress(self):
         if not self.tablesOK:
             return False
         self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE e.inProgressTime > ? ORDER BY \"start\" DESC",  (0, ))
-        i = 0
-        epgDict = {}
+        epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
-            index = row["start"]
-            epgDict[index] = {
+            epgDict = {
                 "id": row["id"],
                 "channelName": row["channelName"]
             }
             for col in epgColumns:
                 if row[col]:
-                    epgDict[index][col] = row[col]
+                    epgDict[col] = row[col]
                 elif col in self._getEpgColumnsInt():
-                    epgDict[index][col] = 0
+                    epgDict[col] = 0
                 else:
-                    epgDict[index][col] = ""
-            i += 1
-        return epgDict
+                    epgDict[col] = ""
+            epgList.append(epgDict)
+        return epgList
     
     def getEpgChannelRow(self, epgRowID):
         if not self.tablesOK:
@@ -778,17 +806,18 @@ class O2tvgoDB:
         if not self.tablesOK:
             return False
         self.cexec("SELECT * FROM favourites ORDER BY title_pattern ASC")
-        favDict = {}
+        favList = []
         for row in self.cursor:
-            index = row["id"]
-            title = row["title_pattern"]
-            if not row["title_pattern"]:
-                title = ""
-            favDict[index] = {
+            if "title_pattern" in row or not row["title_pattern"]:
+                title_pattern = ""
+            else:
+                title_pattern = row["title_pattern"]
+            favDict = {
                 "id": row["id"],
-                "title_pattern": title
+                "title_pattern": title_pattern
             }
-        return favDict
+            favList.append(favDict)
+        return favList
     
     def getFavourite(self, rowID=None, title_pattern=None, silent=True):
         if not self.tablesOK or (not rowID and not title_pattern):
