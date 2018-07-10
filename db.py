@@ -365,7 +365,7 @@ class O2tvgoDB:
             return False
         self.cexec("UPDATE epg SET "+listColumn+" = ? WHERE id = ?", (0, epgRowID))
         
-    def updateEpg(self, epgId=None, start=None, startTimestamp=None, startEpgTime=None, end=None, endTimestamp=None, endEpgTime=None, title=None, plot="", plotoutline="", fanart_image="", genre="", genres="", isCurrentlyPlaying=None, isNextProgramme=None, inProgressTime=None, isRecentlyWatched=None, isWatchLater=None, id=None, epgIdOld=None, startOld=None, endOld=None, channelID=None,  channelKey=None,  channelKeyClean=None,  channelName=None):
+    def updateEpg(self, epgId=None, start=None, startTimestamp=None, startEpgTime=None, end=None, endTimestamp=None, endEpgTime=None, title=None, plot=None, plotoutline=None, fanart_image=None, genre=None, genres=None, isCurrentlyPlaying=None, isNextProgramme=None, inProgressTime=None, isRecentlyWatched=None, isWatchLater=None, id=None, epgIdOld=None, startOld=None, endOld=None, channelID=None,  channelKey=None,  channelKeyClean=None,  channelName=None):
         if not self.tablesOK:
             return False
         #def getEpgID(self, id=None, epgIdOld=None, startOld=None, endOld=None, channelID=None,  channelKey=None,  channelKeyClean=None,  channelName=None, silent=False):
@@ -378,9 +378,9 @@ class O2tvgoDB:
             epgColumns = self._getEpgColumns()
             for col in epgColumns:
                 loc = locals()
-                if col in loc and loc[col]:
+                if col in loc and loc[col] is not None:
                     inp[col] = loc[col]
-                elif col in epgRow and epgRow[col]:
+                elif col in epgRow and epgRow[col] is not None:
                     inp[col] = epgRow[col]
                 elif col in self._getEpgColumnsInt():
                     inp[col] = 0

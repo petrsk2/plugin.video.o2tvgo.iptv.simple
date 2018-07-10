@@ -441,9 +441,9 @@ try:
                 addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_icon_, isFolder=True)
             if counts["isWatchLater"] > 0:
                 addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_, isFolder=True)
-            if counts["isRecentlyWatched"] > 0:
-                addDirectoryItem("Recently watched", _baseurl_+"?recentlywatched=1", image=_icon_, isFolder=True)
             addDirectoryItem("Favourites", _baseurl_+"?favourites=1", image=_icon_, isFolder=True)
+            if counts["isRecentlyWatched"] > 0:
+                addDirectoryItem("Watched", _baseurl_+"?recentlywatched=1", image=_icon_, isFolder=True)
             addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_, isFolder=False)
             addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_, isFolder=False)
             cacheToDisc=True
@@ -549,6 +549,8 @@ try:
                         else:
                             startOffset = 0
                         actionList.append(('Play previous programme (last 10 minutes)','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(previousProgrammeEpg["id"])+'&startoffset='+str(startOffset)+')'))
+                if "channelID" in item and calledFromList and calledFromList != "recentlyWatched" and "isRecentlyWatched" in item and item["isRecentlyWatched"] == 0:
+                    actionList.append(('Mark as watched (O2TVGo)','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?markaswatched=1&epgrowid='+str(item["id"])+'&channelid='+str(item["channelID"])+')'))
             elif "title" in item:
                 li.setLabel("("+label+")")
                 url=_baseurl_+"?notification_programmeinfuture=1&programmetitle="+item["title"]
@@ -596,7 +598,10 @@ try:
             li.setThumbnailImage(image)
         li.setIconImage(icon)
         if itemInfo:
-            liVideo['plot'] = itemInfo+liVideo['plot']
+            if 'plot' in liVideo:
+                liVideo['plot'] = itemInfo+liVideo['plot']
+            else:
+                liVideo['plot'] = itemInfo
         li.setInfo("video", liVideo)
         xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
@@ -1472,6 +1477,11 @@ try:
         notificationInfo(_lang_(30273) % epg["title"])
         refreshHome("WatchLater")
     
+    def addToWatched(epgRowID, channelID):
+        _db_.updateEpg(id = epgRowID, channelID = channelID, isRecentlyWatched = 1, inProgressTime = 0, isWatchLater = 0)
+        refreshHome()
+        xbmc.executebuiltin('Container.Refresh')
+    
     def playChannelFromEpg(startTime, startDate, channelName, channelNumber, playingCurrently=False, startTimestamp=None, channelIndex=None, epgRowID=None, calledFromList=None, startOffset = 0):
         player = xbmc.Player()
 
@@ -1711,6 +1721,7 @@ try:
     startdate=None
     channelname=None
     channelnumber=None
+    channelid=None
     playingcurrently=None
     starttimestamp=None
     channelindex=None
@@ -1718,6 +1729,7 @@ try:
     favourites=None
     favouriteskeywords = None
     rowid=None
+    markaswatched=None
     favouritekeywordedit=None
     favouritekeyworddelete=None
     favouritekeywordadd=None
@@ -1778,6 +1790,8 @@ try:
     elif addtowatchlater:
         #addtowatchlater=1&programmetitle=$INFO[ListItem.Title]&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&startdate=$INFO[ListItem.StartDate]
         addToWatchLater(programmeTitle=programmetitle, startTime=starttime, channelName=channelname, startDate=startdate)
+    elif markaswatched:
+        addToWatched(epgRowID=epgrowid, channelID=channelid)
     elif notification_programmeinfuture:
         showNotification(type="programmeInFuture", programmeTitle=programmetitle)
     elif refreshhome:

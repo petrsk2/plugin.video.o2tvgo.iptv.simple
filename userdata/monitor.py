@@ -70,6 +70,9 @@ class O2tvgoDBMini:
         return ["epgId", "start", "startTimestamp", "startEpgTime", "end", "endTimestamp", "endEpgTime", "title", "plot", "plotoutline", "fanart_image", "genre", "genres", "channelID",
                   "isCurrentlyPlaying", "isNextProgramme", "inProgressTime", "isRecentlyWatched", "isWatchLater"]
 
+    def _getEpgColumnsInt(self):
+        return ["epgId", "start", "startTimestamp", "startEpgTime", "end", "endTimestamp", "endEpgTime", "isCurrentlyPlaying", "isNextProgramme", "inProgressTime", "isRecentlyWatched", "isWatchLater", "channelID"]
+
     def getNextEpg(self):
         self.cexec("SELECT e.*, ch.name as channelName FROM epg e JOIN channels ch on e.channelID=ch.id WHERE e.isNextProgramme = ?",  (1, ))
         epgDict = {}
@@ -98,6 +101,10 @@ class O2tvgoDBMini:
             for col in epgColumns:
                 if row[col]:
                     epgDict[col] = row[col]
+                elif col in self._getEpgColumnsInt():
+                    epgDict[col] = 0
+                else:
+                    epgDict[col] = ""
             return epgDict
         return False
     
