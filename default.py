@@ -882,6 +882,8 @@ try:
             return False
         _setSaveEpgLock()
         
+        _db_.cleanEpgConflicts(doDelete = True)
+        
         notificationInfo(_lang_(30252),  False,  forceNotifications,  notification, idSuffix=logIdSuffix)
         
         numberOfChannels = len(channelsDict)

@@ -322,20 +322,21 @@ class O2tvgoDB:
                 where += "\"epgId\" = ?"
                 logWhere += "\"epgId\" = "+str(epgIdOld)
                 vars = vars + (epgIdOld, )
-            if startOld:
-                if len(where) > 0:
-                    where += " OR"
-                    logWhere += " OR"
-                where += " start = ?"
-                logWhere += " \"start\" = "+str(startOld)
-                vars = vars + (startOld, )
-            if endOld:
-                if len(where) > 0:
-                    where += " OR"
-                    logWhere += " OR"
-                where += " end = ?"
-                logWhere += " \"end\" = "+str(endOld)
-                vars = vars + (endOld, )
+            else:
+                if startOld:
+                    if len(where) > 0:
+                        where += " OR"
+                        logWhere += " OR"
+                    where += " start = ?"
+                    logWhere += " \"start\" = "+str(startOld)
+                    vars = vars + (startOld, )
+                if endOld:
+                    if len(where) > 0:
+                        where += " OR"
+                        logWhere += " OR"
+                    where += " end = ?"
+                    logWhere += " \"end\" = "+str(endOld)
+                    vars = vars + (endOld, )
             where = "("+where+") AND channelID = ?"
             logWhere = "("+logWhere+") AND channelID = "+str(channelID)
             vars = vars + (channelID, )
@@ -345,8 +346,12 @@ class O2tvgoDB:
             rowcount = len(all)
             if rowcount > 1:
                 self.logWarn("More than one row match the epg search criteria for: "+logWhere+"!")
-                self.cleanEpgDuplicates(doDelete=True)
-                return self.getEpgID(id, epgIdOld, startOld, endOld, channelID,  channelKey,  channelKeyClean,  channelName, silent)
+                res = self.cleanEpgDuplicates(doDelete=True)
+                if res and "cleaned" in res and res["cleaned"]:
+                    return self.getEpgID(id, epgIdOld, startOld, endOld, channelID,  channelKey,  channelKeyClean,  channelName, silent)
+                else:
+                    self.logDbg("Duplicate cleaning result:")
+                    self.logDbg(res)
             if rowcount == 0:
                 if not silent:
                     self.logWarn("No row matches the epg search criteria for: "+logWhere+"!")
@@ -395,6 +400,37 @@ class O2tvgoDB:
             id = self.addEpg(epgId, start, startTimestamp, startEpgTime, end, endTimestamp, endEpgTime, title, plot, plotoutline, fanart_image, genre, genres, isCurrentlyPlaying, isNextProgramme, inProgressTime, isRecentlyWatched, isWatchLater, channelID)
         return id
     
+    def cleanEpgConflicts(self, doDelete=False):
+        if not self.tablesOK:
+            return False
+        query = '''SELECT
+                DISTINCT e.id AS id
+            FROM epg e1
+            JOIN epg e2 ON 
+                (
+                    (e1."start" < e2."start" AND e1."end" > e2."start") OR (e1."start" < e2."end" AND e1."end" > e2."end")
+                    OR
+                    (((e1."start" <= e2."start" AND e1."end" > e2."start") OR (e1."start" < e2."end" AND e1."end" >= e2."end")) and e1.epgId != e2.epgId)
+                ) AND e1.channelID = e2.channelID
+            JOIN epg e ON e.id = e1.id OR e.id = e2.id
+            LEFT JOIN epg ebef ON e."start" = ebef."end" AND e.channelID = ebef.channelID
+            LEFT JOIN epg eaft ON e."end" = eaft."start" AND e.channelID = eaft.channelID
+            WHERE ebef.id IS NULL OR eaft.id IS NULL
+            ORDER BY e.channelID,e."start"'''
+        self.cexec(query)
+        toDelete = []
+        for row in self.cursor:
+            toDelete.append(row["id"])
+        deletedCnt = len(toDelete)
+        if deletedCnt > 0:
+            if doDelete:
+                self.cexec("DELETE FROM epg WHERE id IN (%s)" % ','.join('?'*len(toDelete)), toDelete)
+                self.logInfo("Successfully deleted "+str(deletedCnt)+" EPG conflicts from the DB - IDs: "+", ".join(toDelete))
+            else:
+                self.logInfo("There are "+str(deletedCnt)+" EPG conflicts to delete from the DB - IDs: "+", ".join(toDelete))
+        
+        return deletedCnt
+    
     def cleanEpgDuplicates(self, doDelete=False):
         if not self.tablesOK:
             return False
@@ -405,7 +441,7 @@ class O2tvgoDB:
             duplicates[i] = {"epgId" : row["epgId"],  "cnt": row["cnt"]}
             i += 1
         if not duplicates:
-            return
+            return { "cleaned": False }
         toDelete = []
         for i in duplicates:
             epgId = duplicates[i]["epgId"]
@@ -421,12 +457,14 @@ class O2tvgoDB:
                     self.cexec("DELETE FROM epg WHERE id = ?", (id, ))
             return {
                 "duplicates": duplicates, 
-                "toDelete": toDelete
+                "toDelete": toDelete,
+                "cleaned": len(toDelete)
             }
         else:
             self.logWarn("There were "+str(len(duplicates))+" duplicate epg IDs counted but no items in toDelete[]")
             return {
-                "duplicates": duplicates
+                "duplicates": duplicates,
+                "cleaned": False
             }
     
     def cleanChannelDuplicates(self, doDelete=False):
