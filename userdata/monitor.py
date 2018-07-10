@@ -375,7 +375,7 @@ def isPlayingVideoO2TVGO():
             if currentlyPlaying["inProgressTime"] > 0:
                 _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  0)
                 o2TVGoRefreshHome("InProgress")
-            if currentlyPlaying["isRecentlyWatched"] > 0:
+            if currentlyPlaying["isRecentlyWatched"] != 1:
                 _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
                 o2TVGoRefreshHome("Watched")
                 o2TVGoRefreshHome("Favourites")
@@ -402,20 +402,26 @@ def isPlayingVideoO2TVGO():
                     #_logDbg(msg='The currently playing live channel is #'+str(channelNum)+": "+channelName, logIdSuffix="/isPlayingVideoO2TVGO()")
                     epgInfo = _db_.getCurrentEpgInfoByChannelName(channelName = channelName)
                     if epgInfo and "id" in epgInfo:
-                        #_logDbg(msg='The currently playing live programme is "'+epgInfo["title"]+'", at position '+str(epgInfo["position"]+" / "+str(epgInfo["length"])), logIdSuffix="/isPlayingVideoO2TVGO()")
+                        #_logDbg(msg='The currently playing live programme is "'+epgInfo["title"]+'", at position '+str(epgInfo["position"])+" / "+str(epgInfo["length"]), logIdSuffix="/isPlayingVideoO2TVGO()")
                         if epgInfo["length"] - epgInfo["position"] < 10*60:
                             if epgInfo["inProgressTime"] > 0:
+                                #_logDbg(msg='Setting Progress to 0', logIdSuffix="/isPlayingVideoO2TVGO()")
                                 _db_.setProgress(epgInfo["channelID"], epgInfo["id"],  0)
                                 o2TVGoRefreshHome("InProgress")
-                            if epgInfo["isRecentlyWatched"] > 0:
+                            if epgInfo["isRecentlyWatched"] != 1:
+                                #_logDbg(msg='Setting Watched to 1', logIdSuffix="/isPlayingVideoO2TVGO()")
                                 _db_.setIsRecentlyWatchedTo1(epgInfo["id"])
                                 o2TVGoRefreshHome("Watched")
                                 o2TVGoRefreshHome("Favourites")
                             if epgInfo["isWatchLater"] > 0:
+                                #_logDbg(msg='Setting WatchLater to 0', logIdSuffix="/isPlayingVideoO2TVGO()")
                                 _db_.setIsWatchLaterTo0(epgInfo["id"])
                                 o2TVGoRefreshHome("WatchLater")
                         else:
+                            #_logDbg(msg='Setting Progress to '+str(epgInfo["position"]), logIdSuffix="/isPlayingVideoO2TVGO()")
                             _db_.setProgress(epgInfo["channelID"], epgInfo["id"],  epgInfo["position"])
+                    else:
+                        _logDbg(msg='Epg name not found for channel '+channelName, logIdSuffix="/isPlayingVideoO2TVGO()")
                     _db_.closeDB()
                 else:
                     O2TVGO_VIDEO_LIVE = False
