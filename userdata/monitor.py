@@ -10,6 +10,7 @@ _m3u_json_ = _profile_+'o2tvgo-prgs.json'
 _db_path_ = _profile_+'o2tvgo.db'
 _logId_ = "O2TVGO/IPTVSimple/monitor.py"
 O2TVGO_VIDEO = False
+O2TVGO_VIDEO_LIVE = False
 
 class O2tvgoDBMini:
     def __init__(self,  db_path, logId):
@@ -101,7 +102,7 @@ class O2tvgoDBMini:
         return False
     
     def getChannelByBaseName(self,  baseName):
-        self.cexec("SELECT id, \"key\", keyClean, name, epgLastModTimestamp FROM channels WHERE baseName LIKE '%"+baseName+"%'")
+        self.cexec("SELECT id, \"key\", keyClean, name, epgLastModTimestamp FROM channels WHERE baseName LIKE ?", ('%'+baseName+'%', ))
         r = self.cursor.fetchone()
         if not r:
             return {}
@@ -111,6 +112,43 @@ class O2tvgoDBMini:
             "keyClean": r[2], 
             "name": r[3], 
             "epgLastModTimestamp": r[4]
+        }
+    
+    def getChannelByName(self,  name):
+        self.cexec("SELECT id, \"key\", keyClean, name, epgLastModTimestamp FROM channels WHERE name = ?", (name, ))
+        r = self.cursor.fetchone()
+        if not r:
+            return {}
+        return {
+            "id": r[0],
+            "key": r[1],
+            "keyClean": r[2],
+            "name": r[3],
+            "epgLastModTimestamp": r[4]
+        }
+
+    def getCurrentEpgInfoByChannelName(self,  channelName):
+        query = '''
+            SELECT e.id, e.title, e.channelID, e."end" - e."start" AS "length", CAST(strftime('%s','now') AS INTEGER) - e."start" AS "position", e.inProgressTime, e.isRecentlyWatched, e.isWatchLater
+            FROM epg e
+            JOIN channels ch ON e.channelID = ch.id
+            WHERE
+                e."start" <= CAST(strftime('%s','now') AS INTEGER) AND e."end" > CAST(strftime('%s','now') AS INTEGER)
+                AND ch.name = ?
+        '''
+        self.cexec(query, (channelName, ))
+        r = self.cursor.fetchone()
+        if not r:
+            return {}
+        return {
+            "id": r[0],
+            "title": r[1],
+            "channelID": r[2],
+            "length": r[3],
+            "position": r[4],
+            "inProgressTime": r[5],
+            "isRecentlyWatched": r[6],
+            "isWatchLater": r[7],
         }
     
     def setProgress(self, channelID, epgID,  time):
@@ -173,6 +211,14 @@ class MyPlayer(xbmc.Player) :
         #def onPlayBackStarted(self):
             #self.logDbg('CALLBACK: onPlayBackStarted')
 
+        def onPlayBackSeek(self, time, seekOffset):
+            self.logDbg('CALLBACK: onPlayBackSeek (time = '+str(time)+', seekOffset = '+str(seekOffset)+')')
+            if O2TVGO_VIDEO:
+                currentlyPlaying = _db_.getCurrentlyPlayingEpg()
+                if currentlyPlaying:
+                    _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  int(time / 1000))
+                _db_.closeDB()
+        
         def onPlayBackEnded(self):
             self.logDbg('CALLBACK: onPlayBackEnded')
             _db_.setIsCurrentlyPlayingTo0()
@@ -295,6 +341,25 @@ def o2TVGoRefreshHome(section=None):
     else:
         xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, ts)
 
+def jsonRPCgetNowPlaying():
+    payload = {
+        'jsonrpc': '2.0',
+        'method': 'Player.GetItem',
+        'params': {
+            'playerid': 1,
+            'properties': ['file', 'showtitle', 'season', 'episode']
+        },
+        'id': '1'
+    }
+    payloadJson = json.dumps(payload)
+    jsonResponse = xbmc.executeJSONRPC(payloadJson)
+    if jsonResponse:
+        respponseDecoded = json.loads(jsonResponse)
+        
+    if "result" in respponseDecoded and "item" in respponseDecoded["result"]:
+        return respponseDecoded["result"]["item"]
+    return False
+
 def isPlayingVideoO2TVGO():
     currentlyPlaying = _db_.getCurrentlyPlayingEpg()
     _db_.closeDB()
@@ -305,27 +370,67 @@ def isPlayingVideoO2TVGO():
         #position = timestampNow - int(currentlyPlaying['start'])
         position = int(xbmc.Player().getTime())
         length = int(currentlyPlaying['end']) - int(currentlyPlaying['start'])
-        #_logDbg(msg='isPlayingVideoO2TVGO: '+str(length)+", "+str(position)+", "+str(timestampNow)+", "+currentlyPlaying["channelName"]+", "+str(currentlyPlaying["title"]), logIdSuffix="/isPlayingVideoO2TVGO()")
+        #_logDbg(msg='Currently playing:  '+str(length)+", "+str(position)+", "+str(timestampNow)+", "+currentlyPlaying["channelName"]+", "+str(currentlyPlaying["title"]), logIdSuffix="/isPlayingVideoO2TVGO()")
         if length - position < (10*60):
-            _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  0)
-            _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
-            _db_.setIsWatchLaterTo0(currentlyPlaying["id"])
-            o2TVGoRefreshHome("InProgress")
-            o2TVGoRefreshHome("Watched")
-            o2TVGoRefreshHome("WatchLater")
+            if currentlyPlaying["inProgressTime"] > 0:
+                _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  0)
+                o2TVGoRefreshHome("InProgress")
+            if currentlyPlaying["isRecentlyWatched"] > 0:
+                _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
+                o2TVGoRefreshHome("Watched")
+                o2TVGoRefreshHome("Favourites")
+            if currentlyPlaying["isWatchLater"] > 0:
+                _db_.setIsWatchLaterTo0(currentlyPlaying["id"])
+                o2TVGoRefreshHome("WatchLater")
         else:
             _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  position)
         _db_.closeDB()
         return True
     playingNow = xbmc.Player().getPlayingFile()
     if not playingNow.endswith("m3u8"):
-        #_logDbg(msg='isPlayingVideoO2TVGO: not playing m3u8', logIdSuffix="/isPlayingVideoO2TVGO()")
+        if playingNow.startswith("pvr://"):
+            #_logDbg(msg='Is playing a live channel: '+playingNow, logIdSuffix="/isPlayingVideoO2TVGO()")
+            global O2TVGO_VIDEO_LIVE
+            try:
+                item = jsonRPCgetNowPlaying()
+                if item and 'type' in item and item["type"] == 'channel' and 'label' in item and 'id' in item:
+                    if not O2TVGO_VIDEO_LIVE:
+                        o2TVGoRefreshHome()
+                    O2TVGO_VIDEO_LIVE = True
+                    channelName = item['label']
+                    #channelNum = item['id']
+                    #_logDbg(msg='The currently playing live channel is #'+str(channelNum)+": "+channelName, logIdSuffix="/isPlayingVideoO2TVGO()")
+                    epgInfo = _db_.getCurrentEpgInfoByChannelName(channelName = channelName)
+                    if epgInfo and "id" in epgInfo:
+                        #_logDbg(msg='The currently playing live programme is "'+epgInfo["title"]+'", at position '+str(epgInfo["position"]+" / "+str(epgInfo["length"])), logIdSuffix="/isPlayingVideoO2TVGO()")
+                        if epgInfo["length"] - epgInfo["position"] < 10*60:
+                            if epgInfo["inProgressTime"] > 0:
+                                _db_.setProgress(epgInfo["channelID"], epgInfo["id"],  0)
+                                o2TVGoRefreshHome("InProgress")
+                            if epgInfo["isRecentlyWatched"] > 0:
+                                _db_.setIsRecentlyWatchedTo1(epgInfo["id"])
+                                o2TVGoRefreshHome("Watched")
+                                o2TVGoRefreshHome("Favourites")
+                            if epgInfo["isWatchLater"] > 0:
+                                _db_.setIsWatchLaterTo0(epgInfo["id"])
+                                o2TVGoRefreshHome("WatchLater")
+                        else:
+                            _db_.setProgress(epgInfo["channelID"], epgInfo["id"],  epgInfo["position"])
+                    _db_.closeDB()
+                else:
+                    O2TVGO_VIDEO_LIVE = False
+            except Exception as ex:
+                _logDbg("An exception occured: "+str(ex))
+                O2TVGO_VIDEO_LIVE = False
+                _db_.closeDB()
+        #_logDbg(msg='Not playing m3u8', logIdSuffix="/isPlayingVideoO2TVGO()")
         return False
     aPlayingNow = playingNow.split('/')
     sPlayingNowFileName = aPlayingNow[-1]
     aPlayingNowFileName = sPlayingNowFileName.split('.')
     sPlayingNowFileNameBase = aPlayingNowFileName[0]
     aParts = sPlayingNowFileNameBase.split('-')
+    _logDbg(aParts)
     iCount = len(aParts)
     if iCount == 5:
         sChannelBaseName = sPlayingNowFileNameBase.rsplit('-', 2)[0]

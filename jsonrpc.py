@@ -152,3 +152,22 @@ class JsonRPC:
             self.logErr("Could not channel ID "+str(channelID)+": No response from JSONRPC")
             self.logDbg('payloadJson: '+payloadJson)
             self.logDbg('jsonResponse: '+jsonResponse)
+    
+    def getNowPlayed(self):
+        payload = {
+            'jsonrpc': '2.0',
+            'method': 'Player.GetItem',
+            'params': {
+                'playerid': 1,
+                'properties': ['file', 'showtitle', 'season', 'episode']
+            },
+            'id': '1'
+        }
+        payloadJson = json.dumps(payload)
+        jsonResponse = xbmc.executeJSONRPC(payloadJson)
+        if jsonResponse:
+            respponseDecoded = json.loads(jsonResponse)
+            
+        if "result" in respponseDecoded and "item" in respponseDecoded["result"]:
+            return respponseDecoded["result"]["item"]
+        return False
