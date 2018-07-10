@@ -286,13 +286,14 @@ def _logDbg(msg, level=xbmc.LOGDEBUG, logIdSuffix=""):
     xbmc.log("[%s] %s"%(_logId_+logIdSuffix,msg.__str__()), level)
 
 def o2TVGoRefreshHome(section=None):
+    ts = str(int(time.time() / 5))
     if not section:
-        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatched', str(int(time.time())))
-        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeInProgress', str(int(time.time())))
-        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatchLater', str(int(time.time())))
-        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeFavourites', str(int(time.time())))
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatched', ts)
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeInProgress', ts)
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatchLater', ts)
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeFavourites', ts)
     else:
-        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, str(int(time.time())))
+        xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, ts)
 
 def isPlayingVideoO2TVGO():
     currentlyPlaying = _db_.getCurrentlyPlayingEpg()

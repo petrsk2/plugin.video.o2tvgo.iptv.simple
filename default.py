@@ -451,13 +451,13 @@ try:
             cacheToDisc=False
             #cacheToDisc=True
             if what=="inProgress":
-                itemRows = _db_.getEpgRowsInProgress()
+                itemRows = _db_.getEpgRowsByList(list = "inProgressTime")
             elif what=="favourites":
-                itemRows = _db_.getEpgRowsFavourites()
+                itemRows = _db_.getEpgRowsByList(list = "favourites")
             elif what=="recentlyWatched":
-                itemRows = _db_.getEpgRowsRecentlyWatched()
+                itemRows = _db_.getEpgRowsByList(list = "isRecentlyWatched")
             elif what == "watchLater":
-                itemRows = _db_.getEpgRowsWatchLater()
+                itemRows = _db_.getEpgRowsByList(list = "isWatchLater")
             elif what == "favouritesKeywords":
                 itemRows = _db_.getFavourites()
             else:
@@ -601,13 +601,14 @@ try:
         xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
     def refreshHome(section=None):
+        ts = str(int(time.time() / 5))
         if not section:
-            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatched', str(int(time.time())))
-            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeInProgress', str(int(time.time())))
-            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatchLater', str(int(time.time())))
-            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeFavourites', str(int(time.time())))
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatched', ts)
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeInProgress', ts)
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatchLater', ts)
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeFavourites', ts)
         else:
-            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, str(int(time.time())))
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, ts)
 
     def favouriteKeywordAction(action, rowID=None, titlePattern=None):
         if action=="edit":
@@ -1687,6 +1688,10 @@ try:
 
     # Get rid of the JSON files and store all in DB #
     upgradeConfigsFromJsonToDb()
+    # Mark any in progress (and watch later) programmes as watched if applicable #
+    moved = _db_.moveEpgToWatched()
+    if moved:
+        refreshHome()
     
     pause=None
     saveepg=None
