@@ -954,7 +954,7 @@ try:
                 channelNum += 1
             except ChannelIsNotBroadcastingError:
                 logDbg("Channel "+channel.name+" ("+str(iChannelJsonNumber+1)+"/"+str(numberOfChannels)+") is not broadcasting; skipping it", idSuffix=logIdSuffix)
-                _db_.updateChannel(num=0, id=None, keyOld=channelKey, keyCleanOld=channelKeyClean, nameOld=None)
+                _db_.updateChannel(num=10000, id=None, keyOld=channelKey, keyCleanOld=channelKeyClean, nameOld=None)
                 iChannelJsonNumber += 1 # Otherwise the EPG guides get mixed up!
 
         m3u = "\n".join(m3uLines)

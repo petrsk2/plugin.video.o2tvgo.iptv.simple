@@ -438,7 +438,6 @@ def isPlayingVideoO2TVGO():
         _db_.closeDB()
         setPlayingTime(-1)
         return True
-    setPlayingTime(-1)
     playingNow = xbmc.Player().getPlayingFile()
     if not playingNow.endswith("m3u8"):
         if playingNow.startswith("pvr://"):

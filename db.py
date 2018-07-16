@@ -749,10 +749,11 @@ class O2tvgoDB:
             FROM epg e
             JOIN channels ch
             ON e.channelID = ch.id
-            WHERE e.genre LIKE ? AND ch.num > 0
+            WHERE e.genre LIKE ?
             GROUP BY ch.id
             ORDER BY ch.num ASC
         '''
+        # AND ch.num > 0
         self.cexec(query, ("%"+genre+"%", ))
         channelList = []
         for row in self.cursor:
@@ -768,7 +769,10 @@ class O2tvgoDB:
     def getEpgByGenre(self, genre, channelID):
         if not self.tablesOK:
             return False
-        self.cexec("SELECT e.*, ch.name, CAST(strftime('%s','now') AS INTEGER) > e.\"end\" isPast FROM epg e JOIN channels ch on e.channelID = ch.id WHERE e.genre like ? AND e.channelID = ? ORDER BY isPast DESC, e.title ASC, e.startTimestamp ASC", ("%"+genre+"%", channelID))
+        self.cexec('''SELECT e.*, ch.name, CAST(strftime('%s','now') AS INTEGER) > e.\"end\" isPast
+            FROM epg e JOIN channels ch on e.channelID = ch.id
+            WHERE e.genre like ? AND e.channelID = ?
+            ORDER BY isPast DESC, e.title ASC, e.startTimestamp ASC''', ("%"+genre+"%", channelID))
         epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
