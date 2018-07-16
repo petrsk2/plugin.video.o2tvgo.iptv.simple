@@ -4,7 +4,9 @@ CREATE TABLE IF NOT EXISTS channels (
     keyClean TEXT,
     name TEXT,
     baseName TEXT,
-    epgLastModTimestamp REAL
+    epgLastModTimestamp REAL,
+    icon TEXT,
+    num INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS epg (

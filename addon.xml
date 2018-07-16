@@ -1,17 +1,68 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="plugin.video.o2tvgo.iptv.simple" name="O2TV Go for IPTV Simple" version="2.0.0" provider-name="charliecek">
-  <requires>
-    <import addon="xbmc.python" version="2.1.0"/>
-    <import addon="script.module.requests" version="2.7.0"/>
-<!--     <import addon="pvr.iptvsimple" version="2.4.14"/> -->
-  </requires>
-  <extension point="xbmc.python.pluginsource" library="default.py">
-    <provides>video</provides>
-  </extension>
-  <extension point="xbmc.addon.metadata">
-    <summary>O2TV Go EPG and playlist fetcher for IPTV Simple with Timeshift support</summary>
-  <description>O2TV Go channel and EPG fetcher for IPTV Simple Client with Timeshift support</description>
-    <description lang="sk">získava zoznam kanálov a EPG z O2TV Go služby pre IPTV Simple Client a pridáva podporu Timeshift</description>
-    <platform>all</platform>
-  </extension>
+    <requires>
+        <import addon="xbmc.python" version="2.23.0"/>
+        <import addon="script.module.requests" version="2.7.0"/>
+<!--        <import addon="pvr.iptvsimple" version="2.4.14"/> -->
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="default.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="kodi.context.item">
+        <menu id="kodi.core.main">
+            <menu>
+                <label>O2TVGo</label>
+                <item library="contextmenus/li_action.PlayPrevious.py">
+                    <label>Play previous programme (last 10 minutes)</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.PlayPrevious))</visible>
+                </item>
+                <item library="contextmenus/li_action.MarkWatched.py">
+                    <label>Mark as watched</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.MarkWatched))</visible>
+                </item>
+                <item library="contextmenus/li_action.EditFavouriteKeyword.py">
+                    <label>Edit</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.EditFavouriteKeyword))</visible>
+                </item>
+                <item library="contextmenus/li_action.RemoveFavouriteKeyword.py">
+                    <label>Remove</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.RemoveFavouriteKeyword))</visible>
+                </item>
+                <item library="contextmenus/li_info.py">
+                    <label>Show info</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.ShowInfo))]</visible>
+                </item>
+                <item library="contextmenus/li_action.PlayFromBeginning.py">
+                    <label>Play from beginning</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.PlayFromBeginning))</visible>
+                </item>
+                <item library="contextmenus/li_action.DontWatchLater.py">
+                    <label>Don't watch later</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.DontWatchLater))</visible>
+                </item>
+                <item library="contextmenus/li_action.WatchLater.py">
+                    <label>Watch later</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.WatchLater))</visible>
+                </item>
+                <item library="contextmenus/li_action.RemoveFromList_inProgress.py">
+                    <label>Remove from list 'In progress'</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.RemoveFromList_inProgress))</visible>
+                </item>
+                <item library="contextmenus/li_action.RemoveFromList_watchLater.py">
+                    <label>Remove from list 'Watch later'</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.RemoveFromList_watchLater))</visible>
+                </item>
+                <item library="contextmenus/li_action.RemoveFromList_recentlyWatched.py">
+                    <label>Remove from list 'Watched'</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.RemoveFromList_recentlyWatched))</visible>
+                </item>
+            </menu>
+        </menu>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary>O2TV Go EPG and playlist fetcher for IPTV Simple with Timeshift support</summary>
+        <description>O2TV Go channel and EPG fetcher for IPTV Simple Client with Timeshift support</description>
+        <description lang="sk">získava zoznam kanálov a EPG z O2TV Go služby pre IPTV Simple Client a pridáva podporu Timeshift</description>
+        <platform>all</platform>
+    </extension>
 </addon>

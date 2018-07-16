@@ -8,7 +8,7 @@ import xbmc
 import xbmcgui
 import xbmcplugin
 import xbmcaddon
-import urllib
+import urllib, urllib2
 import json
 import random
 from uuid import getnode as get_mac
@@ -203,7 +203,24 @@ try:
     _username_ = _addon_.getSetting("username")
     _password_ = _addon_.getSetting("password")
     _format_ = 'video/' + _addon_.getSetting('format').lower()
-    _icon_ = xbmc.translatePath( os.path.join(_addon_.getAddonInfo('path'), 'icon.png' ) )
+    _icon_o2tvgo_ = xbmc.translatePath( os.path.join(_addon_.getAddonInfo('path'), 'icon.png' ) )
+    _icon_folder_ = xbmc.translatePath( os.path.join(_addon_.getAddonInfo('path'), 'icons/' ) )
+    _epg_genre_icon_folder_ =_icon_folder_ + 'genres/t-'
+    _epg_genre_icon_map_ = {
+        "sci-fi/fantasy": "sci-fi-and-fantasy.png", 
+        "ak_n_/dobrodru_n_": "action-and-adventure.png", 
+        "dokument": "documentary.png", 
+        "drama": "drama.png", 
+        "krimi": "crime.png", 
+        "thriller": "thriller.png", 
+        "komedi_ln_": "comedy.png", 
+        "d_tsk_/rodinn_": "family.png", 
+        "serial": "tv-series.png", 
+        "romantick_": "romance.png", 
+        "sport": "sport.png", 
+        "in_/nezaraden_": "default.png", 
+        "default": "default.png"
+    }
     _handle_ = int(sys.argv[1])
     _baseurl_ = sys.argv[0]
 
@@ -389,6 +406,28 @@ try:
             fMtime = os.path.getmtime(_save_epg_lock_file_)
             _db_.setLock("saveEpgRunning", fMtime)
             os.remove(_save_epg_lock_file_)
+        queries = {
+            'emptyGenreUpdated': [
+                "UPDATE epg SET genre = 'iné/nezaradené' WHERE genre = ''"
+            ],
+            'genreUpdated': [
+                "UPDATE epg SET genre = REPLACE(genre, ' - ', ' / ') WHERE genre LIKE '% - %'", 
+                "UPDATE epg SET genre = REPLACE(genre, 'akční / dobrodružný','akční/dobrodružný') WHERE genre LIKE '%akční / dobrodružný%'", 
+                "UPDATE epg SET genre = REPLACE(genre, 'dětský / rodinný','dětský/rodinný') WHERE genre LIKE '%dětský / rodinný%'", 
+                "UPDATE epg SET genre = REPLACE(genre, 'sci-fi / fantasy','sci-fi/fantasy') WHERE genre LIKE '%sci-fi / fantasy%'", 
+                "UPDATE epg SET genre = REPLACE(genre, 'iné / nezaradené','iné/nezaradené') WHERE genre LIKE '%iné / nezaradené%'"
+            ], 
+            'channelColumnsAdded': [
+                "ALTER TABLE channels ADD icon TEXT", 
+                "ALTER TABLE channels ADD num INTEGER DEFAULT 0"
+            ]
+        }
+        for lockName in queries:
+            lockVal = _db_.getLock(lockName)
+            if not lockVal:
+                for query in queries[lockName]:
+                    _db_.cexec(query)
+                _db_.setLock(lockName, time.time())
         return True
     
     def _openIptvSimpleClientSettings():
@@ -433,19 +472,20 @@ try:
 #        aCh2 = ch2.split('/')
 #        return aCh1[3] == aCh2[3]
 
-    def dirListing(what=None, refresh=0, calledFrom=None):
-        # This will give options to start saveEPG etc.
+    def dirListing(what=None, refresh=0, calledFrom=None, genre=None, channelID=None):
         if not what:
+            # TODO: icons
             counts = _db_.getEpgListCounts()
             if counts["isInProgress"] > 0:
-                addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_icon_, isFolder=True)
+                addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_icon_folder_ + "in-progress.png", isFolder=True)
             if counts["isWatchLater"] > 0:
-                addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_, isFolder=True)
-            addDirectoryItem("Favourites", _baseurl_+"?favourites=1", image=_icon_, isFolder=True)
+                addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_folder_ + "watch-later.png", isFolder=True)
+            addDirectoryItem("Favourites", _baseurl_+"?favourites=1", isFolder=True, image=_icon_folder_ + "favourites.png")
             if counts["isRecentlyWatched"] > 0:
-                addDirectoryItem("Watched", _baseurl_+"?recentlywatched=1", image=_icon_, isFolder=True)
-            addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_, isFolder=False)
-            addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_, isFolder=False)
+                addDirectoryItem("Watched", _baseurl_+"?recentlywatched=1", image=_icon_folder_ + "watched.png", isFolder=True)
+            addDirectoryItem("Genres", _baseurl_+"?genres=1", image=_epg_genre_icon_folder_ + _epg_genre_icon_map_["default"], isFolder=True)
+            addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_folder_ + "eventlog.png", isFolder=False)
+            addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_folder_ + "refresh.png", isFolder=False)
             cacheToDisc=True
         else:
             cacheToDisc=False
@@ -460,13 +500,44 @@ try:
                 itemRows = _db_.getEpgRowsByList(list = "isWatchLater")
             elif what == "favouritesKeywords":
                 itemRows = _db_.getFavourites()
+            elif what == 'Genres':
+                itemRows = _db_.getEpgGenres()
+                #logDbg(itemRows)
+            elif what == 'GenreChannels':
+                itemRows = _db_.getChannelsByGenre(genre)
+                xbmcgui.Window(10025).setProperty('SearchedGenre', genre)
+            elif what == 'GenreEpg':
+                itemRows = _db_.getEpgByGenre(genre, channelID)
+                xbmcgui.Window(10025).setProperty('SearchedGenre', genre)
+                channelRow = _db_.getChannelRow(id=channelID)
+                xbmcgui.Window(10025).setProperty('ChannelName', channelRow["name"])
             else:
                 itemRows = []
             if itemRows:
                 for item in itemRows:
+                    if "fanart_image" in item and len(item["fanart_image"]) > 0:
+                        imageNew = _getLogoUrl(item["fanart_image"])
+                        if imageNew != item["fanart_image"]:
+                            item["fanart_image"] = imageNew
+                            _db_.updateEpg(id = item["id"], channelID = item["channelID"], fanart_image = imageNew)
                     if what=="favouritesKeywords":
-                        # TODO: editing, removing, adding a new one from epg detail
                         addDirectoryItem(item["title_pattern"], _baseurl_+"?favouritekeywordedit=1&rowid="+str(item["id"]), isFolder=False, calledFromList=what, item=item)
+                    elif what == 'Genres':
+                        if item["key"] in _epg_genre_icon_map_:
+                            genreIcon = _epg_genre_icon_folder_ + _epg_genre_icon_map_[item["key"]]
+                        else:
+                            genreIcon = _epg_genre_icon_folder_ + _epg_genre_icon_map_["default"]
+                        addDirectoryItem(item["title"]+" ("+str(item["count"])+")", _baseurl_+"?genrechannels="+item["title"], isFolder=True, image=genreIcon)
+                    elif what == 'GenreChannels':
+                        if "icon" in item and len(item["icon"]) > 0:
+                            channelIcon = item["icon"]
+                            channelIconNew = _getLogoUrl(channelIcon)
+                            if channelIcon != channelIconNew:
+                                channelIcon = channelIconNew
+                                _db_.updateChannel(icon=channelIcon, id=item["channelID"])
+                        else:
+                            channelIcon = _icon_o2tvgo_
+                        addDirectoryItem(item["channelName"]+" ("+str(item["count"])+")", _baseurl_+"?genreepg="+genre+"&channelid="+str(item["channelID"]), image=channelIcon, isFolder=True)
                     else:
                         itemInfo = ""
                         progressInfo = ""
@@ -497,11 +568,13 @@ try:
                         ttl = ttlMinus+time.strftime(ttlFormat, time.gmtime(ttlSeconds))
                         airingTime = _timestampToNiceDateTime(item["start"], item["end"])
                         if calledFrom == "home":
-                            if what == "favourites" and "isRecentlyWatched" in item and item["isRecentlyWatched"] > 0:
+                            if what == "favourites" and (("isRecentlyWatched" in item and item["isRecentlyWatched"] > 0) or hasProgress or ("isWatchLater" in item and item["isWatchLater"] > 0)):
                                 continue
-                            itemTitle = item["channelName"]
                             if "end" in item and item["end"] >= time.time():
                                 continue
+                            itemTitle = item["channelName"]
+                        elif what == "GenreEpg":
+                            itemTitle = item["title"]+" | "+progressInfo+airingTime + " | TTL: "+ttl
                         else:
                             itemTitle = item["channelName"]+": "+item["title"]+" | "+progressInfo+airingTime + " | TTL: "+ttl
                         itemInfo += airingTime+"\n"
@@ -512,12 +585,12 @@ try:
                         if item['fanart_image']:
                             icon=item["fanart_image"]
                         else:
-                            icon=_icon_
+                            icon=_icon_o2tvgo_
                         addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(item["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=item["title"],  item=item, calledFromList=what, itemInfo=itemInfo)
             if what=="favourites" and calledFrom != "home":
-                addDirectoryItem("Edit keywords", _baseurl_+"?favouriteskeywords=1", image=_icon_, isFolder=True)
+                addDirectoryItem("Edit keywords", _baseurl_+"?favouriteskeywords=1", image=_icon_o2tvgo_, isFolder=True)
             if what=="favouritesKeywords":
-                addDirectoryItem("[Add keyword]", _baseurl_+"?favouritekeywordadd=1", image=_icon_, isFolder=False)
+                addDirectoryItem("[Add keyword]", _baseurl_+"?favouritekeywordadd=1", image=_icon_o2tvgo_, isFolder=False)
         
         updateListing = False
         if refresh:
@@ -526,11 +599,23 @@ try:
         if refresh:
             xbmc.executebuiltin('Container.Refresh')
 
-    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_, image=None, isFolder=True, calledFromList=None, item=None, itemInfo=None):
+    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_o2tvgo_, image=None, isFolder=True, calledFromList=None, item=None, itemInfo=None):
         li = xbmcgui.ListItem(label)
+        if calledFromList is not None and len(calledFromList) > 0:
+            li.setProperty("O2TVGoItem", calledFromList)
+        elif isFolder:
+            li.setProperty("O2TVGoItem", "Folder")
+        else:
+            li.setProperty("O2TVGoItem", "Item")
+        
+        if item is not None and len(item) > 0:
+            if "id" in item:
+                li.setProperty('EpgRowID', str(item["id"]))
+            if "channelID" in item:
+                li.setProperty('ChannelID', str(item["channelID"]))
         
         videoinfo={}
-        if calledFromList and calledFromList != "inProgress" and "isRecentlyWatched" in item and item["isRecentlyWatched"]:
+        if calledFromList and calledFromList != "inProgress" and item is not None and "isRecentlyWatched" in item and item["isRecentlyWatched"]:
             videoinfo["playcount"] = 1
         if len(videoinfo) > 0:
             li.setInfo('video', videoinfo)
@@ -539,7 +624,7 @@ try:
         timeNow = time.time()
         if item and len(item)>0:
             if "end" in item and item["end"] < timeNow:
-                if item and "end" in item and "channelID" in item:
+                if "start" in item and "channelID" in item:
                     previousProgrammeEpg = _db_.getEpgRowByEnd(end=item["start"], channelID=item["channelID"])
                     if previousProgrammeEpg and "start" in previousProgrammeEpg and "end" in previousProgrammeEpg and "id" in previousProgrammeEpg:
                         offsetFromEnd = 10*60
@@ -548,18 +633,31 @@ try:
                             startOffset = length - offsetFromEnd
                         else:
                             startOffset = 0
-                        actionList.append(('Play previous programme (last 10 minutes)','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(previousProgrammeEpg["id"])+'&startoffset='+str(startOffset)+')'))
+                        action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(previousProgrammeEpg["id"])+'&startoffset='+str(startOffset)+')'
+                        actionList.append(('Play previous programme (last 10 minutes)', action))
+                        li.setProperty('O2TVGoItem.Action.PlayPrevious', action)
                 if "channelID" in item and calledFromList and calledFromList != "recentlyWatched" and "isRecentlyWatched" in item and item["isRecentlyWatched"] == 0:
-                    actionList.append(('Mark as watched (O2TVGo)','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?markaswatched=1&epgrowid='+str(item["id"])+'&channelid='+str(item["channelID"])+')'))
+                    action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?markaswatched=1&epgrowid='+str(item["id"])+'&channelid='+str(item["channelID"])+')'
+                    actionList.append(('Mark as watched (O2TVGo)', action))
+                    li.setProperty('O2TVGoItem.Action.MarkWatched', action)
             elif "title" in item:
                 li.setLabel("("+label+")")
                 url=_baseurl_+"?notification_programmeinfuture=1&programmetitle="+item["title"]
         if calledFromList and calledFromList == "favouritesKeywords":
-            actionList.append(('Edit','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(item["id"])+')'))
-            actionList.append(('Remove','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(item["id"])+')'))
-            li.addContextMenuItems(actionList)
+            action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(item["id"])+')'
+            actionList.append(('Edit', action))
+            li.setProperty('O2TVGoItem.Action.EditFavouriteKeyword', action)
+            action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(item["id"])+')'
+            actionList.append(('Remove', action))
+            li.setProperty('O2TVGoItem.Action.RemoveFavouriteKeyword', action)
+#            li.addContextMenuItems(actionList)
             xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
             return
+        if item is not None and (("plotoutline" in item and len(item["plotoutline"]) > 0) or ("plot" in item and len(item["plot"]) > 0)) and "id" in item and "channelID" in item:
+            #actionList.append(('Show plot','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?showplot=1&epgrowid='+str(item["id"])+'&channelid='+str(item["channelID"])+')'))
+            action = 'Action(info)'
+            actionList.append(('Show info', action))
+            li.setProperty('O2TVGoItem.Action.ShowInfo', action)
         if not title:
             title = label
         liVideo = {'title': title}
@@ -584,15 +682,27 @@ try:
             if calledFromList == "inProgress" or (item and len(item)>0 and "inProgressTime" in item and item["inProgressTime"] > 0):
                 li.setProperty('StartOffset', str(item["inProgressTime"]))
                 li.setProperty("ResumeTime", str(item["inProgressTime"]))
-                actionList.append(
-                    ('Play from beginning','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(item["id"])+')')
-                )
-            if calledFromList != "favourites":
-                actionList.append(
-                    ('Remove from this list','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(item["id"])+')')
-                )
-        if actionList:
-            li.addContextMenuItems(actionList)
+                action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(item["id"])+')'
+                actionList.append(('Play from beginning', action))
+                li.setProperty('O2TVGoItem.Action.PlayFromBeginning', action)
+            if calledFromList != "watchLater" and "isRecentlyWatched" in item and item["isRecentlyWatched"] == 0:
+                if "isWatchLater" in item:
+                    if item["isWatchLater"]:
+                        action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist=watchLater&epgrowid='+str(item["id"])+')'
+                        actionList.append(('Don\'t watch later', action))
+                        li.setProperty('O2TVGoItem.Action.DontWatchLater', action)
+                    else:
+                        action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?addtowatchlater=1&channelid='+str(item["channelID"])+'&epgrowid='+str(item["id"])+')'
+                        actionList.append(('Watch later', action))
+                        li.setProperty('O2TVGoItem.Action.WatchLater', action)
+            if calledFromList != "favourites" and calledFromList != "GenreEpg" and item is not None and "id" in item:
+                action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(item["id"])+')'
+                actionList.append(('Remove from this list', action))
+                li.setProperty('O2TVGoItem.Action.RemoveFromList', action)
+                #logDbg("Setting property "+'O2TVGoItem.Action.RemoveFromList_'+calledFromList)
+                li.setProperty('O2TVGoItem.Action.RemoveFromList_'+calledFromList, action)
+#        if actionList:
+#            li.addContextMenuItems(actionList)
         
         if image:
             li.setThumbnailImage(image)
@@ -603,17 +713,42 @@ try:
             else:
                 liVideo['plot'] = itemInfo
         li.setInfo("video", liVideo)
+#        if "genre" in liVideo:
+#            logDbg("GENRE")
+#            logDbg(liVideo["genre"])
+#            logDbg(li.getProperty("GenreType"))
         xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
+    def openGenreDirListing(genre):
+        xbmc.executebuiltin('ActivateWindow(10025, "plugin://plugin.video.o2tvgo.iptv.simple?genre='+genre+'",return)')
+        return
+    
     def refreshHome(section=None):
-        ts = str(int(time.time() / 5))
+        ts = str(int(time.time() / 2))
         if not section:
             xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatched', ts)
             xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeInProgress', ts)
             xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeWatchLater', ts)
             xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeFavourites', ts)
+            xbmcgui.Window(10000).setProperty('O2TVGoRefreshHomeGenres', ts)
         else:
             xbmcgui.Window(10000).setProperty('O2TVGoRefreshHome'+section, ts)
+        xbmc.executebuiltin('Container.Refresh')
+
+    def showEpgPlot(epgRowID, channelID):
+        epg = _db_.getEpgRow(id = epgRowID, channelID = channelID)
+        if not epg:
+            notificationWarning("Couldn't retrieve EPG for rowID="+str(epgRowID)+" and channelID="+str(channelID))
+            return
+        plot = ""
+        if "plot" in epg:
+            plot += epg["plot"]
+        if "plotoutline" in epg and len(epg["plotoutline"]) > 0 and epg["plotoutline"] not in plot:
+            if len(plot) > 0:
+                plot = "\n\n" + plot
+            plot = epg["plotoutline"] + plot
+        if len(plot) > 0:
+            xbmcgui.Dialog().textviewer("Plot: "+epg["title"], plot)
 
     def favouriteKeywordAction(action, rowID=None, titlePattern=None):
         if action=="edit":
@@ -655,19 +790,19 @@ try:
             "recentlyWatched": "isRecentlyWatched", 
             "watchLater": "isWatchLater"
         }
-        listHomeSectionDict = {
-            "inProgress": "InProgress", 
-            "favourites": "Favourites", 
-            "recentlyWatched": "Watched", 
-            "watchLater": "WatchLater"
-        }
+#        listHomeSectionDict = {
+#            "inProgress": "InProgress", 
+#            "favourites": "Favourites", 
+#            "recentlyWatched": "Watched", 
+#            "watchLater": "WatchLater"
+#        }
         if not removeFromList in listColDict:
             return
         listColumn = listColDict[removeFromList]
         _db_.removeEpgFromList(epgRowID, listColumn)
-        xbmc.executebuiltin('Container.Refresh')
         notificationInfo(_lang_(30275))
-        refreshHome(listHomeSectionDict[removeFromList])
+        #refreshHome(listHomeSectionDict[removeFromList])
+        refreshHome()
 
     def showLogs():
         if os.path.exists(_logFilePath_):
@@ -730,6 +865,30 @@ try:
     def _setSaveEpgLock():
         _db_.setLock("saveEpgRunning", time.time())
  
+    def _getLogoUrl(logoUrl):
+        m = re.match(r"^(.*sizes/)(\d+x\d+)(/.*/)(\d+x\d+)(/.*)$", logoUrl)
+        if m:
+            sizes = ["256x256"]
+            beginning = m.group(1)
+            size1 = m.group(2)
+            size2 = m.group(4)
+            between = m.group(3)
+            end = m.group(5)
+            if size1 in sizes or size2 in sizes:
+                return logoUrl
+            if size1 != size2:
+                logWarn("Sizes in logo url are different")
+            for size in sizes:
+                newUrl = beginning+size+between+size+end
+                request = urllib2.Request(newUrl)
+                request.get_method = lambda : 'HEAD'
+                try:
+                    urllib2.urlopen(request)
+                    return newUrl
+                except:
+                    continue
+        return logoUrl
+    
     def saveChannels(restartPVR = True,  forceNotifications = False):
 #        if not forceNotifications:
 #            return False
@@ -766,15 +925,19 @@ try:
         
         channels_sorted = sorted(channels.values(), key=lambda channel: channel.weight)
         numberOfChannels = len(channels_sorted)
+        channelNum = 1
         iChannelJsonNumber = 0
         m3uLines = []
         m3uLines.append("#EXTM3U")
         for channel in channels_sorted:
+            channelKey = _toString(channel.channel_key)
+            channelKeyClean = re.sub(r"[^a-zA-Z0-9_]", "_", channelKey)
             try:
 #                logDbg("Processing channel "+channel.name+" ("+str(iChannelJsonNumber+1)+"/"+str(numberOfChannels)+")")
                 channelName = _toString(channel.name)
-                channelKey = _toString(channel.channel_key)
-                line = '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s" group-title="O2TVGO", %s' % (channelKey, channelName, _toString(channel.logo_url), channelName)
+                channelLogoUrl = _toString(channel.logo_url)
+                channelLogoUrl = _getLogoUrl(channelLogoUrl)
+                line = '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-logo="%s" group-title="O2TVGO", %s' % (channelKey, channelName, channelLogoUrl, channelName)
                 m3uLines.append(line)
 
                 channel_url = _toString(channel.url())
@@ -784,13 +947,14 @@ try:
                 sUrlFileName = aUrl[-1]
                 aUrlFileName = sUrlFileName.split('.')
                 channelUrlBaseName = aUrlFileName[0]
-                channelKeyClean = re.sub(r"[^a-zA-Z0-9_]", "_", channelKey)
                 
-                _db_.updateChannel(key=channelKey, keyClean=channelKeyClean, name=channelName, baseName=channelUrlBaseName,  id=None, keyOld=channelKey, keyCleanOld=channelKeyClean, nameOld=None)
+                _db_.updateChannel(key=channelKey, keyClean=channelKeyClean, name=channelName, baseName=channelUrlBaseName, icon=channelLogoUrl, num=channelNum, id=None, keyOld=channelKey, keyCleanOld=channelKeyClean, nameOld=None)
 
                 iChannelJsonNumber += 1
+                channelNum += 1
             except ChannelIsNotBroadcastingError:
                 logDbg("Channel "+channel.name+" ("+str(iChannelJsonNumber+1)+"/"+str(numberOfChannels)+") is not broadcasting; skipping it", idSuffix=logIdSuffix)
+                _db_.updateChannel(num=0, id=None, keyOld=channelKey, keyCleanOld=channelKeyClean, nameOld=None)
                 iChannelJsonNumber += 1 # Otherwise the EPG guides get mixed up!
 
         m3u = "\n".join(m3uLines)
@@ -992,23 +1156,25 @@ try:
                                 fanart_image = prg_detail['picture']
                             else:
                                 fanart_image = "http://app.o2tv.cz" + prg_detail['picture']
+                            fanart_image = _getLogoUrl(fanart_image)
                         elif prg['picture']:
                             if prg['picture'].startswith("http://app.o2tv.cz") or prg['picture'].startswith("http://www.o2tv.cz"):
                                 fanart_image = prg['picture']
                             else:
                                 fanart_image = "http://app.o2tv.cz" + prg['picture']
+                            fanart_image = _getLogoUrl(fanart_image)
                         else:
                             fanart_image = ""
                         genres = None
                         genre = None
                         if prg_detail['genres']:
                             genres = prg_detail['genres']
-                            genre = "/".join(genres).replace('/', ' / ')
-                            genreDB = genre
-                            genresDB = json.dumps(genres)
-                        else:
-                            genreDB = ""
-                            genresDB = ""
+                            genre = " / ".join(genres)
+                        if genre is None or len(genre) == 0:
+                            genre = "iné/nezaradené"
+                            genres = [genre, ]
+                        genreDB = genre
+                        genresDB = json.dumps(genres)
                         start = _timestampishToTimestamp(prg['startTimestamp'])
                         epgDict[start] = {
                                 "start": start,
@@ -1093,6 +1259,8 @@ try:
             notificationInfo(msg, False, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
             if restartPVR:
                 _restartPVR()
+            else:
+                _maybeRestartPVR(_epg_refresh_rate_)
         _setSaveEpgLock()
         if not _use_additional_epg_:
             return True
@@ -1109,6 +1277,8 @@ try:
                 notificationInfo(msg, False, forceNotifications, dialogDebug, idSuffix=logIdSuffix)
                 if restartPVR:
                     _restartPVR()
+                else:
+                    _maybeRestartPVR(_epg_refresh_rate_)
             _setSaveEpgLock()
         return True
 
@@ -1462,23 +1632,35 @@ try:
         timestamp = timeDelta.total_seconds() + epgShift
         return int(timestamp)
 
-    def addToWatchLater(programmeTitle, startTime, channelName, startDate):
-        channelRow = _db_.getChannelRow(nameOld = channelName)
-        if not channelRow:
-            notificationError(_lang_(30505))
-            return
-        timestamp = getTimestampFromDayTime(startDate, startTime)
-        if not timestamp:
-            notificationError(_lang_(30504))
-            logDbg([startDate, startTime, channelName])
-            return
-        epg = _db_.getEpgRowByStart(start = timestamp, channelID = channelRow["id"])
-        _db_.updateEpg(id = epg["id"], channelID = channelRow["id"], isWatchLater = 1)
+    def addToWatchLater(programmeTitle, startTime, channelName, startDate, epgRowID=None, channelID=None):
+        if not epgRowID or not channelID:
+            channelRow = _db_.getChannelRow(nameOld = channelName)
+            if not channelRow:
+                notificationError(_lang_(30505))
+                return
+            timestamp = getTimestampFromDayTime(startDate, startTime)
+            if not timestamp:
+                notificationError(_lang_(30504))
+                logDbg([startDate, startTime, channelName])
+                return
+            epg = _db_.getEpgRowByStart(start = timestamp, channelID = channelRow["id"])
+        else:
+            epg = _db_.getEpgRow(id = epgRowID, channelID = channelID)
+        _db_.updateEpg(id = epg["id"], channelID = epg["channelID"], isWatchLater = 1)
+        dialog_id = xbmcgui.getCurrentWindowId()
+        reopen = False
+        if dialog_id == 12003:
+            reopen = True
+            xbmc.executebuiltin("ActivateWindow(10000)")
         notificationInfo(_lang_(30273) % epg["title"])
-        refreshHome("WatchLater")
+        refreshHome()
+        if reopen:
+            xbmc.executebuiltin('Action(info)')
+        xbmc.executebuiltin('Container.Refresh')
     
     def addToWatched(epgRowID, channelID):
         _db_.updateEpg(id = epgRowID, channelID = channelID, isRecentlyWatched = 1, inProgressTime = 0, isWatchLater = 0)
+        notificationInfo("Programme has been marked as watched successfully")
         refreshHome()
         xbmc.executebuiltin('Container.Refresh')
     
@@ -1698,109 +1880,130 @@ try:
             except:
                 pass
 
-    # Get rid of the JSON files and store all in DB #
-    upgradeConfigsFromJsonToDb()
-    # Mark any in progress (and watch later) programmes as watched if applicable #
-    moved = _db_.moveEpgToWatched()
-    if moved:
-        refreshHome()
-    
-    pause=None
-    saveepg=None
-    forcenotifications=None
-    showlogs=None
-    mergeepg=None
-    test=None
-    showplayinginfo=None
-    playfromepg=None
-    epgrowid=None
-    startoffset=None
-    calledfrom=None
-    removefromlist=None
-    starttime=None
-    startdate=None
-    channelname=None
-    channelnumber=None
-    channelid=None
-    playingcurrently=None
-    starttimestamp=None
-    channelindex=None
-    iptv_simple_settings=None
-    favourites=None
-    favouriteskeywords = None
-    rowid=None
-    markaswatched=None
-    favouritekeywordedit=None
-    favouritekeyworddelete=None
-    favouritekeywordadd=None
-    addtowatchlater=None
-    programmetitle=None
-    inprogr=None
-    recentlywatched=None
-    watchlater=None
-    notification_programmeinfuture=None
-    refresh=0
-    refreshhome=None
+    if __name__ == '__main__':
+        # Get rid of the JSON files and store all in DB #
+        upgradeConfigsFromJsonToDb()
+        # Mark any in progress (and watch later) programmes as watched if applicable #
+        moved = _db_.moveEpgToWatched()
+        if moved:
+            refreshHome()
+        
+        pause=None
+        saveepg=None
+        forcenotifications=None
+        showlogs=None
+        mergeepg=None
+        test=None
+        showplayinginfo=None
+        playfromepg=None
+        epgrowid=None
+        startoffset=None
+        calledfrom=None
+        removefromlist=None
+        starttime=None
+        startdate=None
+        channelname=None
+        channelnumber=None
+        channelid=None
+        playingcurrently=None
+        starttimestamp=None
+        channelindex=None
+        iptv_simple_settings=None
+        favourites=None
+        favouriteskeywords = None
+        rowid=None
+        markaswatched=None
+        favouritekeywordedit=None
+        favouritekeyworddelete=None
+        favouritekeywordadd=None
+        showplot=None
+        addtowatchlater=None
+        programmetitle=None
+        inprogr=None
+        recentlywatched=None
+        watchlater=None
+        genres=None
+        homegenre=None
+        genrechannels=None
+        genreepg=None
+        notification_programmeinfuture=None
+        refresh=0
+        refreshhome=None
+#        showinfohome=None
 
-    params=get_params()
-    assign_params(params)
+        params=get_params()
+        assign_params(params)
 
-#    logDbg(params)
+    #    logDbg(params)
 
-    if saveepg:
-        forceNotifications = (forcenotifications and forcenotifications == '1')
-#        logDbg(forcenotifications)
-#        logDbg(_toString(forceNotifications))
-        ok = saveChannels(True, forceNotifications)
-        if ok:
-            ok = saveEPG(False, forceNotifications)
-    elif playfromepg:
-        playChannelFromEpg(starttime, startdate, channelname, channelnumber, playingcurrently, starttimestamp, channelindex, epgRowID = epgrowid, calledFromList = calledfrom, startOffset = startoffset)
-    elif iptv_simple_settings:
-        _openIptvSimpleClientSettings()
-    elif showlogs:
-        showLogs()
-    elif mergeepg:
-        _merge_additional_epg_xml(None, True)
-    elif pause:
-        # Attempt to implement startover - not successful (yet)
-        pausePlayer(channelnumber)
-    elif showplayinginfo:
-        logPlayingInfo()
-    elif test:
-        _test()
-    elif recentlywatched:
-        dirListing(what="recentlyWatched", refresh=refresh, calledFrom=calledfrom)
-    elif favourites:
-        dirListing(what="favourites", refresh=refresh, calledFrom=calledfrom)
-    elif inprogr:
-        dirListing(what="inProgress", refresh=refresh, calledFrom=calledfrom)
-    elif watchlater:
-        dirListing(what="watchLater", refresh=refresh, calledFrom=calledfrom)
-    elif removefromlist:
-        removeEpgFromList(removefromlist, epgrowid)
-    elif favouriteskeywords:
-        dirListing("favouritesKeywords")
-    elif favouritekeywordedit:
-        favouriteKeywordAction(action="edit", rowID=rowid)
-    elif favouritekeyworddelete:
-        favouriteKeywordAction(action="delete", rowID=rowid)
-    elif favouritekeywordadd:
-        favouriteKeywordAction(action="add", titlePattern=programmetitle)
-    elif addtowatchlater:
-        #addtowatchlater=1&programmetitle=$INFO[ListItem.Title]&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&startdate=$INFO[ListItem.StartDate]
-        addToWatchLater(programmeTitle=programmetitle, startTime=starttime, channelName=channelname, startDate=startdate)
-    elif markaswatched:
-        addToWatched(epgRowID=epgrowid, channelID=channelid)
-    elif notification_programmeinfuture:
-        showNotification(type="programmeInFuture", programmeTitle=programmetitle)
-    elif refreshhome:
-        refreshHome()
-        #xbmc.executebuiltin('Container.Refresh')
-        notificationInfo("Refresh done")
-    else:
-        dirListing()
-    _db_.closeDB()
+        if saveepg:
+            forceNotifications = (forcenotifications and forcenotifications == '1')
+    #        logDbg(forcenotifications)
+    #        logDbg(_toString(forceNotifications))
+            ok = saveChannels(True, forceNotifications)
+            if ok:
+                ok = saveEPG(False, forceNotifications)
+        elif playfromepg:
+            playChannelFromEpg(starttime, startdate, channelname, channelnumber, playingcurrently, starttimestamp, channelindex, epgRowID = epgrowid, calledFromList = calledfrom, startOffset = startoffset)
+        elif iptv_simple_settings:
+            _openIptvSimpleClientSettings()
+        elif showlogs:
+            showLogs()
+        elif mergeepg:
+            _merge_additional_epg_xml(None, True)
+        elif pause:
+            # Attempt to implement startover - not successful (yet)
+            pausePlayer(channelnumber)
+        elif showplayinginfo:
+            logPlayingInfo()
+        elif test:
+            _test()
+        elif recentlywatched:
+            dirListing(what="recentlyWatched", refresh=refresh, calledFrom=calledfrom)
+        elif favourites:
+            dirListing(what="favourites", refresh=refresh, calledFrom=calledfrom)
+        elif inprogr:
+            dirListing(what="inProgress", refresh=refresh, calledFrom=calledfrom)
+        elif watchlater:
+            dirListing(what="watchLater", refresh=refresh, calledFrom=calledfrom)
+        elif genres:
+            dirListing(what="Genres", refresh=refresh, calledFrom=calledfrom)
+        elif homegenre:
+            openGenreDirListing(genre=homegenre)
+        elif genrechannels:
+            dirListing(what="GenreChannels", genre=genrechannels)
+        elif genreepg:
+            dirListing(what="GenreEpg", genre=genreepg, channelID=channelid)
+        elif removefromlist:
+            removeEpgFromList(removefromlist, epgrowid)
+        elif favouriteskeywords:
+            dirListing("favouritesKeywords")
+        elif favouritekeywordedit:
+            favouriteKeywordAction(action="edit", rowID=rowid)
+        elif favouritekeyworddelete:
+            favouriteKeywordAction(action="delete", rowID=rowid)
+        elif favouritekeywordadd:
+            favouriteKeywordAction(action="add", titlePattern=programmetitle)
+        elif addtowatchlater:
+            #addtowatchlater=1&programmetitle=$INFO[ListItem.Title]&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&startdate=$INFO[ListItem.StartDate]
+            addToWatchLater(programmeTitle=programmetitle, startTime=starttime, channelName=channelname, startDate=startdate, epgRowID=epgrowid, channelID=channelid)
+        elif markaswatched:
+            addToWatched(epgRowID=epgrowid, channelID=channelid)
+        elif notification_programmeinfuture:
+            showNotification(type="programmeInFuture", programmeTitle=programmetitle)
+        elif refreshhome:
+            refreshHome()
+            #xbmc.executebuiltin('Container.Refresh')
+            notificationInfo("Refresh done")
+#        elif showinfohome:
+#            notificationInfo("Getting there...")
+#            xbmc.executebuiltin('ActivateWindow(10600, "plugin://plugin.video.o2tvgo.iptv.simple?genre='+genre+'",return)')
+            #xbmc.executebuiltin('ActivateWindow(10600)')
+        elif showplot:
+            showEpgPlot(epgRowID=epgrowid, channelID=channelid)
+        else:
+            dirListing()
+        _db_.closeDB()
 except Exception as ex:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     _logs_ = Logs(_scriptname_, _logId_)

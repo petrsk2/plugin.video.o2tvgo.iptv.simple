@@ -81,6 +81,74 @@
 				<left>620</left>
 				<top>-30</top>
 				<control type="group" id="140">
+                    <visible>!IsEmpty(ListItem.Property(O2TVGoItem))</visible>
+                    <description>TODO: SET correct height here; Remove action on UP from here old top: 468, so increase height by 468-164=304</description>
+					<top>164</top>
+					<control type="button" id="138">
+						<width>754</width>
+						<height>418</height>
+						<textoffsetx>40</textoffsetx>
+						<textoffsety>20</textoffsety>
+						<aligny>bottom</aligny>
+						<label></label>
+						<onclick condition="!String.IsEmpty(ListItem.Plot)">SetProperty(TextViewer_Header,$LOCALIZE[207],home)</onclick>
+						<onclick condition="!String.IsEmpty(ListItem.Plot)">SetProperty(TextViewer_Text,$ESCINFO[ListItem.Plot],home)</onclick>
+						<onclick condition="!String.IsEmpty(ListItem.Plot)">ActivateWindow(1102)</onclick>
+						<onup>50</onup>
+						<onleft>138</onleft>
+						<onright>138</onright>
+						<ondown>5000</ondown>
+						<texturenofocus border="21">dialogs/dialog-bg.png</texturenofocus>
+						<visible>Integer.IsGreater(Container(4000).NumItems,0)</visible>
+					</control>
+					<control type="image">
+						<left>735</left>
+						<width>512</width>
+						<height>722</height>
+						<aligny>bottom</aligny>
+						<texture border="21">dialogs/dialog-bg.png</texture>
+						<visible>Integer.IsGreater(Container(4000).NumItems,0)</visible>
+					</control>
+					<control type="button" id="139">
+						<width>1245</width>
+						<height>722</height>
+						<textoffsetx>40</textoffsetx>
+						<textoffsety>20</textoffsety>
+						<aligny>bottom</aligny>
+						<label></label>
+						<onclick condition="!String.IsEmpty(ListItem.Plot)">SetProperty(TextViewer_Header,$LOCALIZE[207],home)</onclick>
+						<onclick condition="!String.IsEmpty(ListItem.Plot)">SetProperty(TextViewer_Text,$ESCINFO[ListItem.Plot],home)</onclick>
+						<onclick condition="!String.IsEmpty(ListItem.Plot)">ActivateWindow(1102)</onclick>
+						<onup>50</onup>
+						<onleft>139</onleft>
+						<onright>139</onright>
+						<ondown>5000</ondown>
+						<texturenofocus border="21">dialogs/dialog-bg.png</texturenofocus>
+						<visible>!Integer.IsGreater(Container(4000).NumItems,0)</visible>
+					</control>
+					<control type="textbox">
+                        <description>Old height: 363</description>
+						<left>40</left>
+						<top>25</top>
+						<width>670</width>
+						<height>667</height>
+						<label fallback="19055">$INFO[ListItem.Plot]</label>
+						<autoscroll delay="10000" time="5000" repeat="10000">Skin.HasSetting(AutoScroll)</autoscroll>
+						<visible>Integer.IsGreater(Container(4000).NumItems,0)</visible>
+					</control>
+					<control type="textbox">
+                        <description>Old height: 363</description>
+						<left>40</left>
+						<top>25</top>
+						<width>1165</width>
+						<height>667</height>
+						<label fallback="19055">$INFO[ListItem.Plot]</label>
+						<autoscroll delay="10000" time="5000" repeat="10000">Skin.HasSetting(AutoScroll)</autoscroll>
+						<visible>!Integer.IsGreater(Container(4000).NumItems,0)</visible>
+					</control>
+				</control>
+				<control type="group" id="140">
+                    <visible>IsEmpty(ListItem.Property(O2TVGoItem))</visible>
 					<top>468</top>
 					<control type="button" id="138">
 						<width>754</width>
@@ -215,6 +283,7 @@
 					</include>
 				</control>
 				<control type="group">
+                    <visible>IsEmpty(ListItem.Property(O2TVGoItem))</visible>
 					<visible>Integer.IsEqual(Container(50).NumItems,0) + String.IsEmpty(ListItem.Art(tvshow.banner)) + String.IsEmpty(ListItem.Art(banner))</visible>
 					<control type="image">
 						<left>0</left>
@@ -388,6 +457,20 @@
 						<param name="icon" value="icons/infodialogs/play.png" />
 						<param name="label" value="$LOCALIZE[208]" />
 					</include>
+                  <include content="InfoDialogButton">
+                                <param name="id" value="2" />
+                                <param name="label" value="Watch later" />
+                                <param name="icon" value="icons/infodialogs/timer.png" />
+                                <param name="onclick_1" value="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?addtowatchlater=1&programmetitle=$INFO[ListItem.Title]&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&startdate=$INFO[ListItem.StartDate]&channelid=$INFO[ListItem.Property(ChannelID)]&epgrowid=$INFO[ListItem.Property(EpgRowID)])" />
+                                <param name="visible" value="System.hasAddon(plugin.video.o2tvgo.iptv.simple) + !IsEmpty(ListItem.Property(O2TVGoItem)) + !String.IsEqual(ListItem.Property(O2TVGoItem),watchLater)" />
+                  </include>
+                  <include content="InfoDialogButton">
+                                <param name="id" value="501" />
+                                <param name="label" value="Add to favourites" />
+                                <param name="icon" value="icons/sidemenu/favourites.png" />
+                                <param name="onclick_1" value="RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordadd=1&programmetitle=$INFO[ListItem.Title])" />
+                                <param name="visible" value="System.hasAddon(plugin.video.o2tvgo.iptv.simple) + !IsEmpty(ListItem.Property(O2TVGoItem)) + !String.IsEqual(ListItem.Property(O2TVGoItem),favourites)" />
+                  </include>
 					<include content="InfoDialogButton">
 						<param name="id" value="11" />
 						<param name="icon" value="icons/infodialogs/trailer.png" />
@@ -411,6 +494,7 @@
 					</include>
 					<control type="group" id="400">
 						<width>262</width>
+                        <visible>IsEmpty(ListItem.Property(O2TVGoItem))</visible>
 						<visible>Control.IsEnabled(7) | !String.IsEmpty(ListItem.UserRating)</visible>
 						<control type="button" id="7">
 							<include content="VideoInfoButtonsCommon">
@@ -453,6 +537,7 @@
 						<param name="visible" value="System.hasAddon(script.extendedinfo) + [String.IsEqual(ListItem.DbType,movie) | String.IsEqual(ListItem.DbType,tvshow) | String.IsEqual(ListItem.DbType,season) | String.IsEqual(ListItem.DbType,episode)]" />
 					</include>
 					<include content="InfoDialogButton">
+                            <param name="visible" value="IsEmpty(ListItem.Property(O2TVGoItem))" />
 						<param name="id" value="102" />
 						<param name="icon" value="icons/infodialogs/image.png" />
 						<param name="label" value="$LOCALIZE[31028]" />
@@ -467,6 +552,7 @@
 						<param name="visible" value="!String.IsEmpty(ListItem.Director)" />
 					</include>
 					<include content="InfoDialogButton">
+                            <param name="visible" value="IsEmpty(ListItem.Property(O2TVGoItem))" />
 						<param name="id" value="10" />
 						<param name="icon" value="icons/infodialogs/choose_image.png" />
 						<param name="label" value="$LOCALIZE[13511]" />

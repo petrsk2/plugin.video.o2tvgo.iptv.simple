@@ -194,6 +194,7 @@
 	<variable name="SeekTimeLabelVar">
 		<value condition="!IsEmpty(Player.SeekNumeric)">[B]$INFO[Player.SeekNumeric(hh:mm:ss)][/B]</value>
 		<value condition="Player.Seeking">$INFO[Player.SeekTime]$INFO[Player.Duration, / ]</value>
+        <value condition="System.hasAddon(plugin.video.o2tvgo.iptv.simple) + [String.IsEqual(Player.Time,00:00) | String.IsEqual(Player.Time,00:00:00)] + !String.IsEmpty(Window(10115).Property(O2TVGo.IsLiveChannel)) + String.IsEqual(Window(10115).Property(O2TVGo.IsLiveChannel),true) + !String.IsEmpty(Window(10115).Property(O2TVGo.LiveChannel.PlayerTime))">$INFO[Window(10115).Property(O2TVGo.LiveChannel.PlayerTime)]$INFO[Player.Duration, / ]</value>
 		<value>$INFO[Player.Time]$INFO[Player.Duration, / ]</value>
 	</variable>
 	<variable name="VideoOSDHelpTextVar">
@@ -331,12 +332,24 @@
 		<value condition="Integer.IsGreater(ListItem.Playcount,0)">$INFO[ListItem.Overlay]</value>
 	</variable>
 	<!-- Breadcrumbs -->
+    <variable name="O2TVGoDirListingLabel">
+        <value condition="SubString(container.folderpath,watchlater)"> / Watch later</value>
+        <value condition="SubString(container.folderpath,recentlywatched)"> / Watched</value>
+        <value condition="SubString(container.folderpath,genres)"> / Genres</value>
+        <value condition="SubString(container.folderpath,favouritekeywordedit)"></value>
+        <value condition="SubString(container.folderpath,genrechannels)"> / Genre: $INFO[Window.Property(SearchedGenre)] / Channels </value>
+        <value condition="SubString(container.folderpath,genreepg)"> / Genre: $INFO[Window.Property(SearchedGenre)] /  $INFO[Window.Property(ChannelName)]</value>
+        <value condition="SubString(container.folderpath,favouriteskeywords)"> / Favourites / Keywords</value>
+        <value condition="SubString(container.folderpath,favourites)"> / Favourites</value>
+        <value condition="SubString(container.folderpath,inprogr)"> / In progress</value>
+    </variable>
 	<variable name="BreadcrumbsVideoVar">
 		<value condition="Container.Content(movies) | String.StartsWith(container.folderpath,library://video/movies/) | String.StartsWith(container.folderpath,videodb://movies)">$LOCALIZE[20342]</value>
 		<value condition="Container.Content(musicvideos) | String.StartsWith(container.folderpath,library://video/musicvideos/) | String.StartsWith(container.folderpath,videodb://musicvideos)">$LOCALIZE[20389]</value>
 		<value condition="Container.Content(tvshows) | String.StartsWith(container.folderpath,library://video/tvshows/) | String.StartsWith(container.folderpath,videodb://tvshows)">$LOCALIZE[20343]</value>
 		<value condition="Container.Content(seasons)">$LOCALIZE[20343]</value>
 		<value condition="Container.Content(episodes)">$LOCALIZE[20343]</value>
+        <value condition="String.StartsWith(container.folderpath,plugin://plugin.video.o2tvgo.iptv.simple)">O2TVGo$VAR[O2TVGoDirListingLabel]</value>
 		<value>$LOCALIZE[3]</value>
 	</variable>
 	<variable name="BreadcrumbsPVRChannelsVar">
@@ -424,4 +437,48 @@
 		<value condition="String.IsEqual(Skin.String(background_overlay),0)">$LOCALIZE[231]</value>
 		<value>$INFO[Skin.String(background_overlay),$LOCALIZE[467] ]</value>
 	</variable>
+    <variable name="PVREpgColorTransparent">
+        <value condition="SubString(ListItem.Genre,sci-fi/fantasy)">windows/pvr/epg-genres/c-green.png</value>
+        <value condition="SubString(ListItem.Genre,akční/dobrodružný)">windows/pvr/epg-genres/c-red.png</value>
+        <value condition="SubString(ListItem.Genre,dokument)">windows/pvr/epg-genres/c-cyan.png</value>
+        <value condition="SubString(ListItem.Genre,drama)">windows/pvr/epg-genres/c-purple.png</value>
+        <value condition="SubString(ListItem.Genre,krimi)">windows/pvr/epg-genres/c-off-green.png</value>
+        <value condition="SubString(ListItem.Genre,thriller)">windows/pvr/epg-genres/c-light-purple.png</value>
+        <value condition="SubString(ListItem.Genre,komediální)">windows/pvr/epg-genres/c-blue.png</value>
+        <value condition="SubString(ListItem.Genre,dětský/rodinný)">windows/pvr/epg-genres/c-orange.png</value>
+        <value condition="SubString(ListItem.Genre,serial)">windows/pvr/epg-genres/c-light-blue.png</value>
+        <value condition="SubString(ListItem.Genre,romantický) | SubString(ListItem.Genre,sport)">windows/pvr/epg-genres/c-gray.png</value>
+        <value condition="SubString(ListItem.Genre,iné/nezaradené)">windows/pvr/epg-genres/c-light-gray.png</value>
+        <value>windows/pvr/epg-genres/c-yellow.png</value>
+    </variable>
+    <variable name="PVREpgColor">
+        <value condition="SubString(ListItem.Genre,sci-fi/fantasy)">windows/pvr/epg-genres/cs-green.png</value>
+        <value condition="SubString(ListItem.Genre,akční/dobrodružný)">windows/pvr/epg-genres/cs-red.png</value>
+        <value condition="SubString(ListItem.Genre,dokument)">windows/pvr/epg-genres/cs-cyan.png</value>
+        <value condition="SubString(ListItem.Genre,drama)">windows/pvr/epg-genres/cs-purple.png</value>
+        <value condition="SubString(ListItem.Genre,krimi)">windows/pvr/epg-genres/cs-off-green.png</value>
+        <value condition="SubString(ListItem.Genre,thriller)">windows/pvr/epg-genres/cs-light-purple.png</value>
+        <value condition="SubString(ListItem.Genre,komediální)">windows/pvr/epg-genres/cs-blue.png</value>
+        <value condition="SubString(ListItem.Genre,dětský/rodinný)">windows/pvr/epg-genres/cs-orange.png</value>
+        <value condition="SubString(ListItem.Genre,serial)">windows/pvr/epg-genres/cs-light-blue.png</value>
+        <value condition="SubString(ListItem.Genre,romantický) | SubString(ListItem.Genre,sport)">windows/pvr/epg-genres/cs-gray.png</value>
+        <value condition="SubString(ListItem.Genre,iné/nezaradené)">windows/pvr/epg-genres/cs-light-gray.png</value>
+        <value>windows/pvr/epg-genres/cs-yellow.png</value>
+    </variable>
+    <variable name="PVREpgColorDiffuse">
+        <value condition="SubString(ListItem.Genre,sci-fi/fantasy)">4000FF00</value>
+        <value condition="SubString(ListItem.Genre,akční/dobrodružný)">40FF0000</value>
+        <value condition="SubString(ListItem.Genre,dokument)">4000FFFF</value>
+        <value condition="SubString(ListItem.Genre,drama)">40800080</value>
+        <value condition="SubString(ListItem.Genre,krimi)">40DFF0E2</value>
+        <value condition="SubString(ListItem.Genre,thriller)">409370DB</value>
+        <value condition="SubString(ListItem.Genre,komediální)">40400000FF</value>
+        <value condition="SubString(ListItem.Genre,dětský/rodinný)">40FFA500</value>
+        <value condition="SubString(ListItem.Genre,serial)">40ADD8E6</value>
+        <value condition="[SubString(ListItem.Genre,romantický) | SubString(ListItem.Genre,sport)]">40808080</value>
+        <value condition="SubString(ListItem.Genre,iné/nezaradené)">40D3D3D3</value>
+    </variable>
+    <variable name="testingVarHome">
+        <value>VAR CONTENT $INFO[ListItem.Label]</value>
+    </variable>
 </includes>

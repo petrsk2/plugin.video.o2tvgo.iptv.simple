@@ -1366,4 +1366,10 @@
 			</include>
 		</control>
 	</include>
+    <expression name="PVREpgColorNotOffGreenTODO">!String.Contains($VAR[PVREpgColor],cs-off-green.png)</expression>
+    <variable name="PVREpgColorDiffuseTODO">
+        <value condition="$EXP[PVREpgColorNotOffGreen] + SubString(ListItem.Genre,krimi)">40FFA500</value>
+        <value condition="SubString(ListItem.Genre,krimi)">40FFFF00</value>
+    </variable>
+
 </includes>

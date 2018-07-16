@@ -367,6 +367,50 @@ def jsonRPCgetNowPlaying():
         return respponseDecoded["result"]["item"]
     return False
 
+def setPlayingTime(position = None, remainingTime = None, length = None):
+    w = xbmcgui.Window(10115)
+    if position is None or position < 0:
+        propIsLiveChannel = w.getProperty('O2TVGo.IsLiveChannel')
+        if propIsLiveChannel == "" or propIsLiveChannel == "true":
+            w.setProperty('O2TVGo.IsLiveChannel', "false")
+            w.clearProperty('O2TVGo.LiveChannel.PlayerTime')
+            w.clearProperty('O2TVGo.LiveChannel.PlayerRemainingTime')
+#            _logDbg(msg='clearing position.', logIdSuffix="/setPlayingTime()")
+#        else:
+#            _logDbg(msg='O2TVGo.IsLiveChannel = '+propIsLiveChannel, logIdSuffix="/setPlayingTime()")
+    else:
+        w.setProperty('O2TVGo.IsLiveChannel', "true")
+
+        try:
+            position = int(position - (position % 5))
+#            _logDbg(msg='position: '+str(position), logIdSuffix="/setPlayingTime()")
+            if length is not None and length < 3600:
+                strPosition = time.strftime('%M:%S', time.gmtime(position))
+            else:
+                strPosition = time.strftime('%H:%M:%S', time.gmtime(position))
+            w.setProperty('O2TVGo.LiveChannel.PlayerTime', strPosition)
+        except Exception as ex:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            _logDbg("An exception occured while setting position: "+str(ex), logIdSuffix="/setPlayingTime()")
+            _logDbg(msg=traceback.format_exc(), logIdSuffix="/setPlayingTime()")
+            setPlayingTime(-1)
+        if remainingTime is not None and remainingTime > 0:
+            try:
+                if remainingTime < 3600:
+                    strRemainingTime = time.strftime('%M:%S', time.gmtime(remainingTime))
+                else:
+                    strRemainingTime = time.strftime('%H:%M:%S', time.gmtime(remainingTime))
+                w.setProperty('O2TVGo.LiveChannel.PlayerRemainingTime', strRemainingTime)
+            except Exception as ex:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                _logDbg("An exception occured while setting remaining time: "+str(ex), logIdSuffix="/setPlayingTime()")
+                w.clearProperty('O2TVGo.LiveChannel.PlayerRemainingTime')
+                _logDbg(msg=traceback.format_exc(), logIdSuffix="/setPlayingTime()")
+        else:
+            w.clearProperty('O2TVGo.LiveChannel.PlayerRemainingTime')
+
+    return
+
 def isPlayingVideoO2TVGO():
     currentlyPlaying = _db_.getCurrentlyPlayingEpg()
     _db_.closeDB()
@@ -392,7 +436,9 @@ def isPlayingVideoO2TVGO():
         else:
             _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  position)
         _db_.closeDB()
+        setPlayingTime(-1)
         return True
+    setPlayingTime(-1)
     playingNow = xbmc.Player().getPlayingFile()
     if not playingNow.endswith("m3u8"):
         if playingNow.startswith("pvr://"):
@@ -405,12 +451,16 @@ def isPlayingVideoO2TVGO():
                         o2TVGoRefreshHome()
                     O2TVGO_VIDEO_LIVE = True
                     channelName = item['label']
+                    
                     #channelNum = item['id']
                     #_logDbg(msg='The currently playing live channel is #'+str(channelNum)+": "+channelName, logIdSuffix="/isPlayingVideoO2TVGO()")
+                    
                     epgInfo = _db_.getCurrentEpgInfoByChannelName(channelName = channelName)
                     if epgInfo and "id" in epgInfo:
                         #_logDbg(msg='The currently playing live programme is "'+epgInfo["title"]+'", at position '+str(epgInfo["position"])+" / "+str(epgInfo["length"]), logIdSuffix="/isPlayingVideoO2TVGO()")
-                        if epgInfo["length"] - epgInfo["position"] < 10*60:
+                        iRemainingTime = epgInfo["length"] - epgInfo["position"]
+                        setPlayingTime(position=epgInfo["position"], remainingTime=iRemainingTime, length=epgInfo["length"])
+                        if iRemainingTime < 10*60:
                             if epgInfo["inProgressTime"] > 0:
                                 #_logDbg(msg='Setting Progress to 0', logIdSuffix="/isPlayingVideoO2TVGO()")
                                 _db_.setProgress(epgInfo["channelID"], epgInfo["id"],  0)
@@ -429,6 +479,7 @@ def isPlayingVideoO2TVGO():
                             _db_.setProgress(epgInfo["channelID"], epgInfo["id"],  epgInfo["position"])
                     else:
                         _logDbg(msg='Epg name not found for channel '+channelName, logIdSuffix="/isPlayingVideoO2TVGO()")
+                        setPlayingTime(-1)
                     _db_.closeDB()
                 else:
                     O2TVGO_VIDEO_LIVE = False
@@ -436,8 +487,10 @@ def isPlayingVideoO2TVGO():
                 _logDbg("An exception occured: "+str(ex))
                 O2TVGO_VIDEO_LIVE = False
                 _db_.closeDB()
+                setPlayingTime(-1)
         #_logDbg(msg='Not playing m3u8', logIdSuffix="/isPlayingVideoO2TVGO()")
         return False
+    setPlayingTime(-1)
     aPlayingNow = playingNow.split('/')
     sPlayingNowFileName = aPlayingNow[-1]
     aPlayingNowFileName = sPlayingNowFileName.split('.')
@@ -477,9 +530,12 @@ while not monitor.abortRequested() and not xbmc.abortRequested:
             _logDbg(msg='isPlayingVideoO2TVGO exception: ' + str(e), logIdSuffix="/while/exception")
             _logDbg(msg=traceback.format_exc(), logIdSuffix="/while/exception")
             O2TVGO_VIDEO = False
+            setPlayingTime(-1)
 
     else:
         O2TVGO_VIDEO = False
+        setPlayingTime(-1)
+
     
 #    if not O2TVGO_VIDEO:
 #        _db_.setIsCurrentlyPlayingTo0()

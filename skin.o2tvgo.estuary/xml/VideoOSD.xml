@@ -57,7 +57,7 @@
               <param name="texture" value="osd/fullscreen/buttons/previous.png"/>
             </include>
             <onclick>RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&starttime=$INFO[Player.StartTime]&channelname=$INFO[VideoPlayer.ChannelName]&channelnumber=$INFO[VideoPlayer.ChannelNumber]&startdate=&playingcurrently=1)</onclick>
-            <visible>false & VideoPlayer.Content(livetv)</visible>
+            <visible>false + VideoPlayer.Content(livetv)</visible>
           </control>
           <control type="radiobutton" id="602">
             <textureradioonfocus colordiffuse="white">osd/fullscreen/buttons/play.png</textureradioonfocus>
@@ -95,7 +95,7 @@
             <radioposy>0</radioposy>
             <selected>Player.Paused</selected>
             <onclick>RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?pause=1&channelnumber=$INFO[VideoPlayer.ChannelNumber])</onclick>
-            <visible>false & !Player.PauseEnabled & VideoPlayer.Content(livetv)</visible>
+            <visible>false + !Player.PauseEnabled + VideoPlayer.Content(livetv)</visible>
           </control>
                     <control type="radiobutton" id="603">
             <include content="OSDButton">
