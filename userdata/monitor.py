@@ -1,5 +1,5 @@
 import xbmc, xbmcgui, xbmcaddon
-import json, time,  sqlite3, sys,  traceback
+import json, time, re, sqlite3, sys,  traceback
 
 _addon_o2tvgo_iptvo_simple_ = xbmcaddon.Addon('plugin.video.o2tvgo.iptv.simple')
 _profile_ = xbmc.translatePath(_addon_o2tvgo_iptvo_simple_.getAddonInfo('profile')).decode("utf-8")
@@ -170,8 +170,12 @@ class O2tvgoDBMini:
     def setIsWatchLaterTo0(self, epgID):
         self.cexec("UPDATE epg SET isWatchLater = ? WHERE id = ?",  (0, epgID))
 
-    def setIsRecentlyWatchedTo1(self, epgID):
+    def setIsRecentlyWatchedTo1(self, epgID, title=None):
         self.cexec("UPDATE epg SET isRecentlyWatched = ? WHERE id = ?",  (1, epgID))
+        if title is not None and len(title) > 0:
+            match = re.search(r"[(\[]\d+/\d+[)\]]",  title)
+            if match:
+                self.cexec("UPDATE epg SET isRecentlyWatched = ? WHERE title = ?",  (1, title))
     
     def getLock(self, name,  silent=True):
         self.cexec("SELECT val FROM lock WHERE name = ?",  (name, ))
@@ -427,7 +431,7 @@ def isPlayingVideoO2TVGO():
                 _db_.setProgress(currentlyPlaying["channelID"], currentlyPlaying["id"],  0)
                 o2TVGoRefreshHome("InProgress")
             if currentlyPlaying["isRecentlyWatched"] != 1:
-                _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"])
+                _db_.setIsRecentlyWatchedTo1(currentlyPlaying["id"], title=currentlyPlaying["title"])
                 o2TVGoRefreshHome("Watched")
                 o2TVGoRefreshHome("Favourites")
             if currentlyPlaying["isWatchLater"] > 0:
@@ -466,7 +470,7 @@ def isPlayingVideoO2TVGO():
                                 o2TVGoRefreshHome("InProgress")
                             if epgInfo["isRecentlyWatched"] != 1:
                                 #_logDbg(msg='Setting Watched to 1', logIdSuffix="/isPlayingVideoO2TVGO()")
-                                _db_.setIsRecentlyWatchedTo1(epgInfo["id"])
+                                _db_.setIsRecentlyWatchedTo1(epgInfo["id"], title=epgInfo["title"])
                                 o2TVGoRefreshHome("Watched")
                                 o2TVGoRefreshHome("Favourites")
                             if epgInfo["isWatchLater"] > 0:

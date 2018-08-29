@@ -991,3 +991,10 @@ class O2tvgoDB:
                     "count": genreCounts[genreUnknownKey]
                 })
         return genres
+    def markSameTitleEpgWatched(self, rowID, channelID):
+        epgRow = self.getEpgRow(id = rowID, channelID = channelID)
+        if epgRow and "title" in epgRow and epgRow["title"]:
+            title = epgRow["title"]
+            match = re.search(r"[(\[]\d+/\d+[)\]]",  title)
+            if match:
+                self.cexec("UPDATE epg SET isRecentlyWatched = ? WHERE title = ?",  (1, title))

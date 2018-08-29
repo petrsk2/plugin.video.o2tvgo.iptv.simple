@@ -481,9 +481,9 @@ try:
             if counts["isWatchLater"] > 0:
                 addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_folder_ + "watch-later.png", isFolder=True)
             addDirectoryItem("Favourites", _baseurl_+"?favourites=1", isFolder=True, image=_icon_folder_ + "favourites.png")
+            addDirectoryItem("Genres", _baseurl_+"?genres=1", image=_epg_genre_icon_folder_ + _epg_genre_icon_map_["default"], isFolder=True)
             if counts["isRecentlyWatched"] > 0:
                 addDirectoryItem("Watched", _baseurl_+"?recentlywatched=1", image=_icon_folder_ + "watched.png", isFolder=True)
-            addDirectoryItem("Genres", _baseurl_+"?genres=1", image=_epg_genre_icon_folder_ + _epg_genre_icon_map_["default"], isFolder=True)
             addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_folder_ + "eventlog.png", isFolder=False)
             addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_folder_ + "refresh.png", isFolder=False)
             cacheToDisc=True
@@ -1660,6 +1660,7 @@ try:
     
     def addToWatched(epgRowID, channelID):
         _db_.updateEpg(id = epgRowID, channelID = channelID, isRecentlyWatched = 1, inProgressTime = 0, isWatchLater = 0)
+        _db_.markSameTitleEpgWatched(rowID = epgRowID, channelID = channelID)
         notificationInfo("Programme has been marked as watched successfully")
         refreshHome()
         xbmc.executebuiltin('Container.Refresh')
