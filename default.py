@@ -420,6 +420,10 @@ try:
             'channelColumnsAdded': [
                 "ALTER TABLE channels ADD icon TEXT", 
                 "ALTER TABLE channels ADD num INTEGER DEFAULT 0"
+            ], 
+            'fixIconAndFanartImages2': [
+                "UPDATE epg SET fanart_image=REPLACE(fanart_image, 'http://app.o2tv.czhttp://', 'http://') WHERE fanart_image LIKE 'http://app.o2tv.czhttp://%'", 
+                "UPDATE channels SET icon=REPLACE(icon, 'http://app.o2tv.czhttp://', 'http://') WHERE icon LIKE 'http://app.o2tv.czhttp://%'"
             ]
         }
         for lockName in queries:
@@ -603,10 +607,12 @@ try:
         li = xbmcgui.ListItem(label)
         if calledFromList is not None and len(calledFromList) > 0:
             li.setProperty("O2TVGoItem", calledFromList)
+            li.setProperty('O2TVGoItem.Action.ShowInfo', "defaultfromlist")
         elif isFolder:
             li.setProperty("O2TVGoItem", "Folder")
         else:
             li.setProperty("O2TVGoItem", "Item")
+            li.setProperty('O2TVGoItem.Action.ShowInfo', "default")
         
         if item is not None and len(item) > 0:
             if "id" in item:
@@ -653,11 +659,13 @@ try:
 #            li.addContextMenuItems(actionList)
             xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
             return
-        if item is not None and (("plotoutline" in item and len(item["plotoutline"]) > 0) or ("plot" in item and len(item["plot"]) > 0)) and "id" in item and "channelID" in item:
+        if item is not None and (("plotoutline" in item and len(item["plotoutline"]) > 0) or ("plot" in item and len(item["plot"]) > 0)): # and "id" in item and "channelID" in item:
             #actionList.append(('Show plot','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?showplot=1&epgrowid='+str(item["id"])+'&channelid='+str(item["channelID"])+')'))
             action = 'Action(info)'
             actionList.append(('Show info', action))
             li.setProperty('O2TVGoItem.Action.ShowInfo', action)
+        else:
+            li.setProperty('O2TVGoItem.Action.ShowInfo', "forced")
         if not title:
             title = label
         liVideo = {'title': title}
@@ -866,6 +874,17 @@ try:
         _db_.setLock("saveEpgRunning", time.time())
  
     def _getLogoUrl(logoUrl):
+        f = re.match(r"^(http://.*)+(http://.*)$", logoUrl)
+        if f:
+            newUrl = f.group(2)
+            request = urllib2.Request(newUrl)
+            request.get_method = lambda : 'HEAD'
+            try:
+                urllib2.urlopen(request)
+                logoUrl = newUrl
+            except:
+                return logoUrl
+
         m = re.match(r"^(.*sizes/)(\d+x\d+)(/.*/)(\d+x\d+)(/.*)$", logoUrl)
         if m:
             sizes = ["256x256"]
@@ -1152,13 +1171,13 @@ try:
                             notificationError(_lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes", idSuffix=logIdSuffix)
                             return True
                         if prg_detail['picture']:
-                            if prg_detail['picture'].startswith("http://app.o2tv.cz") or prg_detail['picture'].startswith("http://www.o2tv.cz"):
+                            if prg_detail['picture'].startswith("http://") or prg_detail['picture'].startswith("https://"):
                                 fanart_image = prg_detail['picture']
                             else:
                                 fanart_image = "http://app.o2tv.cz" + prg_detail['picture']
                             fanart_image = _getLogoUrl(fanart_image)
                         elif prg['picture']:
-                            if prg['picture'].startswith("http://app.o2tv.cz") or prg['picture'].startswith("http://www.o2tv.cz"):
+                            if prg['picture'].startswith("http://") or prg['picture'].startswith("https://"):
                                 fanart_image = prg['picture']
                             else:
                                 fanart_image = "http://app.o2tv.cz" + prg['picture']

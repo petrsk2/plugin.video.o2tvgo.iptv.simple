@@ -30,7 +30,7 @@
                 </item>
                 <item library="contextmenus/li_info.py">
                     <label>Show info</label>
-                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.ShowInfo))]</visible>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.ShowInfo))</visible>
                 </item>
                 <item library="contextmenus/li_action.PlayFromBeginning.py">
                     <label>Play from beginning</label>

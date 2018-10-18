@@ -296,7 +296,7 @@ class O2TVGO:
                     if live:
                         channel_key = self._logs_._toString(item['channelKey'])
                         logoUrl = self._logs_._toString(item['logo'])
-                        if logoUrl.startswith("http://www.o2tv.cz") or logoUrl.startswith("http://app.o2tv.cz"):
+                        if logoUrl.startswith("http://") or logoUrl.startswith("https://"):
                             logo = logoUrl
                         else:
                             logo = "http://www.o2tv.cz" + logoUrl
@@ -325,7 +325,7 @@ class O2TVGO:
                     channel_key = self._logs_._toString(item['channelKey'])
                     if 'logoUrl' in item.keys():
                         logoUrl = item['logoUrl']
-                        if logoUrl.startswith("http://www.o2tv.cz") or logoUrl.startswith("http://app.o2tv.cz"):
+                        if logoUrl.startswith("http://") or logoUrl.startswith("https://"):
                             logo_url = logoUrl
                         else:
                             logo_url = "http://www.o2tv.cz" + logoUrl
