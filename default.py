@@ -231,7 +231,9 @@ try:
     _db_ = O2tvgoDB(_db_path_, _profile_, _addon_path_, _notification_disable_all_, _logs_, _scriptname_, _logId_)
     _dbExceptionRes_ = _db_.getExceptionRes()
     
-    _db_.setLock("timeshift", _epgTimeshift_)
+    tsh = _db_.getLock("timeshift")
+    if tsh != _epgTimeshift_ and tsh != _dbExceptionRes_:
+        _db_.setLock("timeshift", _epgTimeshift_)
 
     ###############################################################################
     def _fetchChannels():
