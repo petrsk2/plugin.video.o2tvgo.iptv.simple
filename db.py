@@ -838,8 +838,9 @@ class O2tvgoDB:
     def setLock(self, name, val=None):
         if not self.tablesOK:
             return False
-        while val == self.lockDefaultValue:
-            self.lockDefaultValue -= 1
+        if val and val == self.lockDefaultValue:
+            while val == self.lockDefaultValue:
+                self.lockDefaultValue -= 1
         lockVal = self.getLock(name=name, defaultVal=self.lockDefaultValue)
         if lockVal == self.exceptionRes:
             return False
