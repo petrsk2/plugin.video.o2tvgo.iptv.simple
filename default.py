@@ -113,21 +113,21 @@ try:
                             _addon_.setSetting(settingKey, settingVal)
         _logs_.logNtc("Setting default values")
         DEFAULT_SETTING_VALUES = {
-            'send_errors' : 'false', 
-            'use_iptv_simple_timeshift': 'true', 
+            'send_errors' : 'false',
+            'use_iptv_simple_timeshift': 'true',
             'epg_timeshift' : str(_getPvrIptvSimpleEpgShift(0)),
-            'channel_refresh_rate': '3', 
-            'epg_refresh_rate': '12', 
-            'limit_epg_per_batch': 'true', 
-            'epg_fetch_batch_limit': '10', 
-            'epg_fetch_batch_timeout': '10', 
-            'force_restart': 'false', 
-            'use_additional_m3u': '0', 
-            'use_additional_epg': '0', 
+            'channel_refresh_rate': '3',
+            'epg_refresh_rate': '12',
+            'limit_epg_per_batch': 'true',
+            'epg_fetch_batch_limit': '10',
+            'epg_fetch_batch_timeout': '10',
+            'force_restart': 'false',
+            'use_additional_m3u': '0',
+            'use_additional_epg': '0',
             'configure_cron': 'false',
-            'notification_disable_all': 'false', 
-            'notification_refreshing_started': 'true', 
-            'notification_pvr_restart': 'true', 
+            'notification_disable_all': 'false',
+            'notification_refreshing_started': 'true',
+            'notification_pvr_restart': 'true',
         }
         for setting in DEFAULT_SETTING_VALUES.keys():
             val = _addon_.getSetting(setting)
@@ -207,18 +207,18 @@ try:
     _icon_folder_ = xbmc.translatePath( os.path.join(_addon_.getAddonInfo('path'), 'icons/' ) )
     _epg_genre_icon_folder_ =_icon_folder_ + 'genres/t-'
     _epg_genre_icon_map_ = {
-        "sci-fi/fantasy": "sci-fi-and-fantasy.png", 
-        "ak_n_/dobrodru_n_": "action-and-adventure.png", 
-        "dokument": "documentary.png", 
-        "drama": "drama.png", 
-        "krimi": "crime.png", 
-        "thriller": "thriller.png", 
-        "komedi_ln_": "comedy.png", 
-        "d_tsk_/rodinn_": "family.png", 
-        "serial": "tv-series.png", 
-        "romantick_": "romance.png", 
-        "sport": "sport.png", 
-        "in_/nezaraden_": "default.png", 
+        "sci-fi/fantasy": "sci-fi-and-fantasy.png",
+        "ak_n_/dobrodru_n_": "action-and-adventure.png",
+        "dokument": "documentary.png",
+        "drama": "drama.png",
+        "krimi": "crime.png",
+        "thriller": "thriller.png",
+        "komedi_ln_": "comedy.png",
+        "d_tsk_/rodinn_": "family.png",
+        "serial": "tv-series.png",
+        "romantick_": "romance.png",
+        "sport": "sport.png",
+        "in_/nezaraden_": "default.png",
         "default": "default.png"
     }
     _handle_ = int(sys.argv[1])
@@ -229,6 +229,7 @@ try:
     _db_path_ = _profile_+'o2tvgo.db'
     _addon_path_ = _addon_.getAddonInfo('path')+"/"
     _db_ = O2tvgoDB(_db_path_, _profile_, _addon_path_, _notification_disable_all_, _logs_, _scriptname_, _logId_)
+    _dbExceptionRes_ = _db_.getExceptionRes()
     
     _db_.setLock("timeshift", _epgTimeshift_)
 
@@ -317,6 +318,7 @@ try:
         logDbg("function was replaced with a dummy empty one")
 
     def upgradeConfigsFromJsonToDb():
+        #OBSOLETE!
         silentAdd = True
         if os.path.exists(_m3u_json_):
             try:
@@ -336,11 +338,13 @@ try:
                         ch = channelListDict[k]
                         channelKeyClean = re.sub(r"[^a-zA-Z0-9_]", "_", ch["channel_key"])
                         id = _db_.getChannelID(keyOld=ch["channel_key"], keyCleanOld=channelKeyClean, silent=silentAdd)
+                        if id == _dbExceptionRes_:
+                            successM3U = False
                         if not id:
                             index = indexesByKey[ch["channel_key"]]
                             baseName = baseNamesByIndexes[index]
                             idNew = _db_.addChannel(ch["channel_key"],  channelKeyClean,  ch["name"], baseName)
-                            if not idNew:
+                            if not idNew or idNew == _dbExceptionRes_:
                                 successM3U = False
                 if channelsDict and "chJsNumByIndex" in channelsDict:
                     for i in channelsDict["chJsNumByIndex"]:
@@ -348,6 +352,8 @@ try:
                         channelKeyClean = re.sub(r"[^a-zA-Z0-9_]", "_", channelKey)
                         channelID = _db_.getChannelID(keyOld=channelKey, keyCleanOld=channelKeyClean)
                         successEpg = True
+                        if channelID == _dbExceptionRes_:
+                            successEpg = False
                         jsonEpgFile = None
                         if channelID:
                             channelJsonNumber = channelsDict["chJsNumByIndex"][i]
@@ -375,7 +381,7 @@ try:
                                                 plotoutline = oneEpg["plotoutline"],
                                                 fanart_image = oneEpg["fanart_image"],
                                                 genre = oneEpg["genre"],
-                                                genres = json.dumps(oneEpg["genres"]), 
+                                                genres = json.dumps(oneEpg["genres"]),
                                                 channelID=channelID)
                                             if idNew:
                                                 logNtc("Successfully imported EPG #"+str(oneEpg["epgId"])+" with new ID #"+str(idNew)+" from JSON file into DB.")
@@ -411,27 +417,21 @@ try:
                 "UPDATE epg SET genre = 'iné/nezaradené' WHERE genre = ''"
             ],
             'genreUpdated': [
-                "UPDATE epg SET genre = REPLACE(genre, ' - ', ' / ') WHERE genre LIKE '% - %'", 
-                "UPDATE epg SET genre = REPLACE(genre, 'akční / dobrodružný','akční/dobrodružný') WHERE genre LIKE '%akční / dobrodružný%'", 
-                "UPDATE epg SET genre = REPLACE(genre, 'dětský / rodinný','dětský/rodinný') WHERE genre LIKE '%dětský / rodinný%'", 
-                "UPDATE epg SET genre = REPLACE(genre, 'sci-fi / fantasy','sci-fi/fantasy') WHERE genre LIKE '%sci-fi / fantasy%'", 
+                "UPDATE epg SET genre = REPLACE(genre, ' - ', ' / ') WHERE genre LIKE '% - %'",
+                "UPDATE epg SET genre = REPLACE(genre, 'akční / dobrodružný','akční/dobrodružný') WHERE genre LIKE '%akční / dobrodružný%'",
+                "UPDATE epg SET genre = REPLACE(genre, 'dětský / rodinný','dětský/rodinný') WHERE genre LIKE '%dětský / rodinný%'",
+                "UPDATE epg SET genre = REPLACE(genre, 'sci-fi / fantasy','sci-fi/fantasy') WHERE genre LIKE '%sci-fi / fantasy%'",
                 "UPDATE epg SET genre = REPLACE(genre, 'iné / nezaradené','iné/nezaradené') WHERE genre LIKE '%iné / nezaradené%'"
-            ], 
+            ],
             'channelColumnsAdded': [
-                "ALTER TABLE channels ADD icon TEXT", 
+                "ALTER TABLE channels ADD icon TEXT",
                 "ALTER TABLE channels ADD num INTEGER DEFAULT 0"
-            ], 
+            ],
             'fixIconAndFanartImages2': [
-                "UPDATE epg SET fanart_image=REPLACE(fanart_image, 'http://app.o2tv.czhttp://', 'http://') WHERE fanart_image LIKE 'http://app.o2tv.czhttp://%'", 
+                "UPDATE epg SET fanart_image=REPLACE(fanart_image, 'http://app.o2tv.czhttp://', 'http://') WHERE fanart_image LIKE 'http://app.o2tv.czhttp://%'",
                 "UPDATE channels SET icon=REPLACE(icon, 'http://app.o2tv.czhttp://', 'http://') WHERE icon LIKE 'http://app.o2tv.czhttp://%'"
             ]
         }
-        for lockName in queries:
-            lockVal = _db_.getLock(lockName)
-            if not lockVal:
-                for query in queries[lockName]:
-                    _db_.cexec(query)
-                _db_.setLock(lockName, time.time())
         return True
     
     def _openIptvSimpleClientSettings():
@@ -793,15 +793,15 @@ try:
     def removeEpgFromList(removeFromList, epgRowID):
         logDbg("Removing epg with id "+str(epgRowID)+" from list "+removeFromList)
         listColDict = {
-            "inProgress": "inProgressTime", 
-            "favourites": "isFavourite", 
-            "recentlyWatched": "isRecentlyWatched", 
+            "inProgress": "inProgressTime",
+            "favourites": "isFavourite",
+            "recentlyWatched": "isRecentlyWatched",
             "watchLater": "isWatchLater"
         }
 #        listHomeSectionDict = {
-#            "inProgress": "InProgress", 
-#            "favourites": "Favourites", 
-#            "recentlyWatched": "Watched", 
+#            "inProgress": "InProgress",
+#            "favourites": "Favourites",
+#            "recentlyWatched": "Watched",
 #            "watchLater": "WatchLater"
 #        }
         if not removeFromList in listColDict:
@@ -851,6 +851,8 @@ try:
 
     def _maybeRestartPVR(refreshRate):
         lastRestart = _db_.getLock("lastRestart")
+        if lastRestart == _dbExceptionRes_:
+            return
         if lastRestart > 0:
             timestampNow = int(time.time())
             if (timestampNow - lastRestart) >= (refreshRate):
@@ -860,7 +862,7 @@ try:
 
     def _is_saveEpg_running():
         locktime = _db_.getLock("saveEpgRunning")
-        if locktime == False:
+        if locktime == _dbExceptionRes_ or locktime == False:
             logDbg("Couldn't retrieve lock: saveEpgRunning")
             return False
         timestampNow = int(time.time())
@@ -1021,9 +1023,9 @@ try:
             channelKeyClean = re.sub(r"[^a-zA-Z0-9_]", "_", channel.channel_key)
             _db_.updateChannel(key=channel.channel_key, keyClean=None, name=channel.name, baseName=None,  id=None, keyOld=channel.channel_key, keyCleanOld=channelKeyClean, nameOld=None)
             channelsDict[i] = {
-               "id": 0, 
+               "id": 0,
                 "name": channel.name,
-                "channel_key": channel.channel_key, 
+                "channel_key": channel.channel_key,
                 "epgLastModTimestamp": 0
             }
             i += 1
@@ -1225,9 +1227,9 @@ try:
                                 plotoutline = prg['shortDescription'],
                                 plot = prg_detail['longDescription'],
                                 genres = genresDB,
-                                genre = genreDB, 
-                                channelID = channel["id"], 
-                                startOld = start, 
+                                genre = genreDB,
+                                channelID = channel["id"],
+                                startOld = start,
                                 epgIdOld = prg['epgId']
                         )
                         _db_.updateChannel(id = channel["id"],  epgLastModTimestamp = int(time.time()))
@@ -1243,30 +1245,31 @@ try:
             _setSaveEpgLock()
 
             # building the actual xml file #
-            for epgDictKey in sorted(epgDict.iterkeys()):
-                prg = epgDict[epgDictKey]
-                et_programme = etree.SubElement(et_tv, "programme", channel=channel["channel_key"])
-                if "startEpgTime" in prg:
-                    et_programme.set("start", str(prg['startEpgTime']))
-                    et_programme.set("stop", str(prg['endEpgTime']))
-                else:
-                    et_programme.set("start", str(_timestampishToEpgTime(prg['startTimestamp'])))
-                    et_programme.set("stop", str(_timestampishToEpgTime(prg['endTimestamp'])))
-                etree.SubElement(et_programme, "title", lang="sk").text = prg['title']
-                etree.SubElement(et_programme, "sub-title", lang="sk").text = prg['plotoutline']
-                etree.SubElement(et_programme, "desc", lang="sk").text = prg['plot']
-                if "fanart_image" in prg and prg["fanart_image"]:
-                    et_programme_icon = etree.SubElement(et_programme, "icon")
-                    et_programme_icon.set("src", prg["fanart_image"])
-                if "genre" in prg and prg["genre"]:
-                    etree.SubElement(et_programme, "category", lang="sk").text = prg["genre"]
-                _setSaveEpgLock()
+            if epgDict:
+                for epgDictKey in sorted(epgDict.iterkeys()):
+                    prg = epgDict[epgDictKey]
+                    et_programme = etree.SubElement(et_tv, "programme", channel=channel["channel_key"])
+                    if "startEpgTime" in prg:
+                        et_programme.set("start", str(prg['startEpgTime']))
+                        et_programme.set("stop", str(prg['endEpgTime']))
+                    else:
+                        et_programme.set("start", str(_timestampishToEpgTime(prg['startTimestamp'])))
+                        et_programme.set("stop", str(_timestampishToEpgTime(prg['endTimestamp'])))
+                    etree.SubElement(et_programme, "title", lang="sk").text = prg['title']
+                    etree.SubElement(et_programme, "sub-title", lang="sk").text = prg['plotoutline']
+                    etree.SubElement(et_programme, "desc", lang="sk").text = prg['plot']
+                    if "fanart_image" in prg and prg["fanart_image"]:
+                        et_programme_icon = etree.SubElement(et_programme, "icon")
+                        et_programme_icon.set("src", prg["fanart_image"])
+                    if "genre" in prg and prg["genre"]:
+                        etree.SubElement(et_programme, "category", lang="sk").text = prg["genre"]
+                    _setSaveEpgLock()
             i += 1
         ## END: for
         # logDbg("saveEPG() 2", idSuffix=logIdSuffix)
         
-        if errorOccured:
-            return False
+        # if errorOccured:
+            # return False
         
 #        xmlElTree = etree.ElementTree(et_tv)
         xmlString = etree.tostring(et_tv, encoding='utf8')
@@ -2041,4 +2044,4 @@ except Exception as ex:
 #            xbmcgui.Dialog().notification(_scriptname_, _lang_(30502), xbmcgui.NOTIFICATION_INFO)
 #        else:
 #            xbmcgui.Dialog().notification(_scriptname_, _lang_(30503), xbmcgui.NOTIFICATION_ERROR)
-#            traceback.print_exception(exc_type, exc_value, exc_traceback)
+#            traceback.print_exception(exc_type, exc_value, exc_tracebac
