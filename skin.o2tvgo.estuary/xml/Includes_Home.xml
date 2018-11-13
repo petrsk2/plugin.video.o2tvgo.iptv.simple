@@ -491,7 +491,7 @@
 		</content>
 	</include>
 	<include name="WidgetListChannels">
-		<param name="item_limit">15</param>
+		<param name="item_limit" default="15" value="$PARAM[item_limit]"/>
 		<param name="icon">$INFO[ListItem.Icon]</param>
 		<param name="label">$INFO[ListItem.Label]</param>
 		<param name="label2">$INFO[ListItem.Title]</param>

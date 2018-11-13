@@ -379,6 +379,7 @@
                                 <param name="widget_target" value="pvr"/>
                                 <param name="list_id" value="12600"/>
                                 <param name="label" value="$INFO[ListItem.label]"/>
+                                <param name="item_limit" value="100"/>
 						</include>
 						<include content="WidgetListChannels" condition="System.HasPVRAddon + System.hasAddon(plugin.video.o2tvgo.iptv.simple)">
                                 <param name="content_path" value="plugin://plugin.video.o2tvgo.iptv.simple?watchlater=1&amp;calledfrom=home&amp;refresh=1&amp;ts=$INFO[Window(HOME).Property(O2TVGoRefreshHomeWatchLater)]"/>
@@ -386,6 +387,7 @@
                                 <param name="widget_target" value="pvr"/>
                                 <param name="list_id" value="12700"/>
                                 <param name="label" value="$INFO[ListItem.label]"/>
+                                <param name="item_limit" value="100"/>
 						</include>
 						<include content="WidgetListChannels" condition="System.HasPVRAddon + System.hasAddon(plugin.video.o2tvgo.iptv.simple)">
                                 <param name="content_path" value="plugin://plugin.video.o2tvgo.iptv.simple?favourites=1&amp;calledfrom=home&amp;refresh=1&amp;ts=$INFO[Window(HOME).Property(O2TVGoRefreshHomeFavourites)]"/>
@@ -393,6 +395,7 @@
                                 <param name="widget_target" value="pvr"/>
                                 <param name="list_id" value="12800"/>
                                 <param name="label" value="$INFO[ListItem.label]"/>
+                                <param name="item_limit" value="100"/>
 						</include>
 						<include content="WidgetListCategories" condition="System.HasPVRAddon + System.hasAddon(plugin.video.o2tvgo.iptv.simple)">
                                 <param name="content_path" value="plugin://plugin.video.o2tvgo.iptv.simple?genres=1&amp;calledfrom=home&amp;refresh=1&amp;ts=$INFO[Window(HOME).Property(O2TVGoRefreshHomeGenres)]"/>
