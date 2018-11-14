@@ -221,6 +221,17 @@ try:
         "in_/nezaraden_": "default.png",
         "default": "default.png"
     }
+    _icon_map_ = {
+        "inProgress": "in-progress.png",
+        "watchLater": "watch-later.png",
+        "favourites": "favourites.png",
+        "recentlyWatched": "watched.png",
+        "logs": "eventlog.png",
+        "refresh": "refresh.png",
+        "watchList": "watch-list.png",
+        "Genres": "genres/t-default.png"
+    }
+
     _handle_ = int(sys.argv[1])
     _baseurl_ = sys.argv[0]
 
@@ -478,20 +489,30 @@ try:
 #        aCh2 = ch2.split('/')
 #        return aCh1[3] == aCh2[3]
 
+    def _getIcon(what="default"):
+        if what in _icon_map_:
+            return _icon_folder_ + _icon_map_[what]
+        return _icon_o2tvgo_
+
+    def _getEpgIcon(key="default"):
+        if key in _epg_genre_icon_map_:
+            return _epg_genre_icon_folder_ + _epg_genre_icon_map_[key]
+        return _epg_genre_icon_folder_ + _epg_genre_icon_map_["default"]
+
     def dirListing(what=None, refresh=0, calledFrom=None, genre=None, channelID=None):
         if not what:
             # TODO: icons
             counts = _db_.getEpgListCounts()
             if counts["isInProgress"] > 0:
-                addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_icon_folder_ + "in-progress.png", isFolder=True)
+                addDirectoryItem("In progress", _baseurl_+"?inprogr=1", image=_getIcon("inProgress"), isFolder=True)
             if counts["isWatchLater"] > 0:
-                addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_icon_folder_ + "watch-later.png", isFolder=True)
-            addDirectoryItem("Favourites", _baseurl_+"?favourites=1", isFolder=True, image=_icon_folder_ + "favourites.png")
-            addDirectoryItem("Genres", _baseurl_+"?genres=1", image=_epg_genre_icon_folder_ + _epg_genre_icon_map_["default"], isFolder=True)
+                addDirectoryItem("Watch later", _baseurl_+"?watchlater=1", image=_getIcon("watchLater"), isFolder=True)
+            addDirectoryItem("Favourites", _baseurl_+"?favourites=1", isFolder=True, image=_getIcon("favourites"))
+            addDirectoryItem("Genres", _baseurl_+"?genres=1", image=_getEpgIcon("default"), isFolder=True)
             if counts["isRecentlyWatched"] > 0:
-                addDirectoryItem("Watched", _baseurl_+"?recentlywatched=1", image=_icon_folder_ + "watched.png", isFolder=True)
-            addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_icon_folder_ + "eventlog.png", isFolder=False)
-            addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_icon_folder_ + "refresh.png", isFolder=False)
+                addDirectoryItem("Watched", _baseurl_+"?recentlywatched=1", image=_getIcon("recentlyWatched"), isFolder=True)
+            addDirectoryItem("Show logs", _baseurl_+"?showlogs=1", image=_getIcon("logs"), isFolder=False)
+            addDirectoryItem("Refresh channels and/or EPG", _baseurl_+"?saveepg=1&forcenotifications=1", image=_getIcon("refresh"), isFolder=False)
             cacheToDisc=True
         else:
             cacheToDisc=False
@@ -521,6 +542,16 @@ try:
                 itemRows = []
             if itemRows:
                 for item in itemRows:
+                    # Add action for opening list #
+                    openListActionList = []
+                    if calledFrom == "home":
+                        if what == "inProgress":
+                            whatParamKey = "inprogr"
+                        else:
+                            whatParamKey = what.lower()
+                        action = 'ActivateWindow(10025, "plugin://plugin.video.o2tvgo.iptv.simple?'+whatParamKey+'=1", return)'
+                        openListActionList = [('OpenList', action)]
+                    
                     if "fanart_image" in item and len(item["fanart_image"]) > 0:
                         imageNew = _getLogoUrl(item["fanart_image"])
                         if imageNew != item["fanart_image"]:
@@ -529,11 +560,7 @@ try:
                     if what=="favouritesKeywords":
                         addDirectoryItem(item["title_pattern"], _baseurl_+"?favouritekeywordedit=1&rowid="+str(item["id"]), isFolder=False, calledFromList=what, item=item)
                     elif what == 'Genres':
-                        if item["key"] in _epg_genre_icon_map_:
-                            genreIcon = _epg_genre_icon_folder_ + _epg_genre_icon_map_[item["key"]]
-                        else:
-                            genreIcon = _epg_genre_icon_folder_ + _epg_genre_icon_map_["default"]
-                        addDirectoryItem(item["title"]+" ("+str(item["count"])+")", _baseurl_+"?genrechannels="+item["title"], isFolder=True, image=genreIcon)
+                        addDirectoryItem(item["title"]+" ("+str(item["count"])+")", _baseurl_+"?genrechannels="+item["title"], isFolder=True, image=_getEpgIcon(item["key"]))
                     elif what == 'GenreChannels':
                         if "icon" in item and len(item["icon"]) > 0:
                             channelIcon = item["icon"]
@@ -592,7 +619,8 @@ try:
                             icon=item["fanart_image"]
                         else:
                             icon=_icon_o2tvgo_
-                        addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(item["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=item["title"],  item=item, calledFromList=what, itemInfo=itemInfo)
+                        addDirectoryItem(itemTitle, _baseurl_+"?playfromepg=1&epgrowid="+str(item["id"])+'&calledfrom='+what, image=icon, icon=icon, isFolder=False, title=item["title"],  item=item, calledFromList=what, itemInfo=itemInfo, actionList=openListActionList)
+                
             if what=="favourites" and calledFrom != "home":
                 addDirectoryItem("Edit keywords", _baseurl_+"?favouriteskeywords=1", image=_icon_o2tvgo_, isFolder=True)
             if what=="favouritesKeywords":
@@ -605,16 +633,27 @@ try:
         if refresh:
             xbmc.executebuiltin('Container.Refresh')
 
-    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_o2tvgo_, image=None, isFolder=True, calledFromList=None, item=None, itemInfo=None):
+    def addDirectoryItem(label, url, plot=None, title=None, icon=_icon_o2tvgo_, image=None, isFolder=True, calledFromList=None, item=None, itemInfo=None, actionList=[]):
         li = xbmcgui.ListItem(label)
-        if calledFromList is not None and len(calledFromList) > 0:
+        
+        if calledFromList == "home":
+            # This doesn't work #
+            logDbg(label)
+            logDbg(title)
+            # li.setProperty("O2TVGoItem.Target", "10025")
+            # if actionList is not None and len(actionList)>0:
+            #     li.addContextMenuItems(actionList)
+            # else:
+            #     logDbg(title)
+            #     logDbg(actionList)
+        elif calledFromList is not None and len(calledFromList) > 0:
             li.setProperty("O2TVGoItem", calledFromList)
-            li.setProperty('O2TVGoItem.Action.ShowInfo', "defaultfromlist")
+            actionList.append(('ShowInfo', "deaultfromlist"))
         elif isFolder:
             li.setProperty("O2TVGoItem", "Folder")
         else:
             li.setProperty("O2TVGoItem", "Item")
-            li.setProperty('O2TVGoItem.Action.ShowInfo', "default")
+            actionList.append(('ShowInfo', "default"))
         
         if item is not None and len(item) > 0:
             if "id" in item:
@@ -628,7 +667,6 @@ try:
         if len(videoinfo) > 0:
             li.setInfo('video', videoinfo)
 
-        actionList = []
         timeNow = time.time()
         if item and len(item)>0:
             if "end" in item and item["end"] < timeNow:
@@ -642,32 +680,29 @@ try:
                         else:
                             startOffset = 0
                         action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(previousProgrammeEpg["id"])+'&startoffset='+str(startOffset)+')'
-                        actionList.append(('Play previous programme (last 10 minutes)', action))
-                        li.setProperty('O2TVGoItem.Action.PlayPrevious', action)
+                        actionList.append(('PlayPrevious', action))
                 if "channelID" in item and calledFromList and calledFromList != "recentlyWatched" and "isRecentlyWatched" in item and item["isRecentlyWatched"] == 0:
                     action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?markaswatched=1&epgrowid='+str(item["id"])+'&channelid='+str(item["channelID"])+')'
-                    actionList.append(('Mark as watched (O2TVGo)', action))
-                    li.setProperty('O2TVGoItem.Action.MarkWatched', action)
+                    actionList.append(('MarkWatched', action))
             elif "title" in item:
                 li.setLabel("("+label+")")
                 url=_baseurl_+"?notification_programmeinfuture=1&programmetitle="+item["title"]
         if calledFromList and calledFromList == "favouritesKeywords":
             action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeywordedit=1&rowid='+str(item["id"])+')'
-            actionList.append(('Edit', action))
-            li.setProperty('O2TVGoItem.Action.EditFavouriteKeyword', action)
+            actionList.append(('EditFavouriteKeyword', action))
             action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(item["id"])+')'
-            actionList.append(('Remove', action))
-            li.setProperty('O2TVGoItem.Action.RemoveFavouriteKeyword', action)
-#            li.addContextMenuItems(actionList)
+            actionList.append(('RemoveFavouriteKeyword', action))
+            if actionList is not None and actionList and len(actionList)>0:
+                for actionTuple in actionList:
+                    li.setProperty('O2TVGoItem.Action.'+actionTuple[0], actionTuple[1])
+                # li.addContextMenuItems(actionList)
             xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
             return
         if item is not None and (("plotoutline" in item and len(item["plotoutline"]) > 0) or ("plot" in item and len(item["plot"]) > 0)): # and "id" in item and "channelID" in item:
-            #actionList.append(('Show plot','RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?showplot=1&epgrowid='+str(item["id"])+'&channelid='+str(item["channelID"])+')'))
             action = 'Action(info)'
-            actionList.append(('Show info', action))
-            li.setProperty('O2TVGoItem.Action.ShowInfo', action)
-        else:
-            li.setProperty('O2TVGoItem.Action.ShowInfo', "forced")
+            actionList.append(('ShowInfo', action))
+        elif calledFromList != "home":
+            actionList.append(('ShowInfo', "forced"))
         if not title:
             title = label
         liVideo = {'title': title}
@@ -688,31 +723,28 @@ try:
                 liVideo['genre'] = item["genre"]
             li.addStreamInfo('video', {'duration': item["end"]-item["start"]})
             
-        if calledFromList:
+        if calledFromList and calledFromList != "home" and item is not None:
             if calledFromList == "inProgress" or (item and len(item)>0 and "inProgressTime" in item and item["inProgressTime"] > 0):
                 li.setProperty('StartOffset', str(item["inProgressTime"]))
                 li.setProperty("ResumeTime", str(item["inProgressTime"]))
                 action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?playfromepg=1&epgrowid='+str(item["id"])+')'
-                actionList.append(('Play from beginning', action))
-                li.setProperty('O2TVGoItem.Action.PlayFromBeginning', action)
+                actionList.append(('PlayFromBeginning', action))
             if calledFromList != "watchLater" and "isRecentlyWatched" in item and item["isRecentlyWatched"] == 0:
                 if "isWatchLater" in item:
                     if item["isWatchLater"]:
                         action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist=watchLater&epgrowid='+str(item["id"])+')'
-                        actionList.append(('Don\'t watch later', action))
-                        li.setProperty('O2TVGoItem.Action.DontWatchLater', action)
+                        actionList.append(('DontWatchLater', action))
                     else:
                         action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?addtowatchlater=1&channelid='+str(item["channelID"])+'&epgrowid='+str(item["id"])+')'
-                        actionList.append(('Watch later', action))
-                        li.setProperty('O2TVGoItem.Action.WatchLater', action)
+                        actionList.append(('WatchLater', action))
             if calledFromList != "favourites" and calledFromList != "GenreEpg" and item is not None and "id" in item:
                 action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?removefromlist='+calledFromList+'&epgrowid='+str(item["id"])+')'
-                actionList.append(('Remove from this list', action))
-                li.setProperty('O2TVGoItem.Action.RemoveFromList', action)
-                #logDbg("Setting property "+'O2TVGoItem.Action.RemoveFromList_'+calledFromList)
-                li.setProperty('O2TVGoItem.Action.RemoveFromList_'+calledFromList, action)
-#        if actionList:
-#            li.addContextMenuItems(actionList)
+                actionList.append(('RemoveFromList', action))
+                actionList.append(('RemoveFromList_'+calledFromList, action))
+        if actionList is not None and actionList and len(actionList)>0:
+            for actionTuple in actionList:
+                li.setProperty('O2TVGoItem.Action.'+actionTuple[0], actionTuple[1])
+            # li.addContextMenuItems(actionList)
         
         if image:
             li.setThumbnailImage(image)
@@ -723,10 +755,10 @@ try:
             else:
                 liVideo['plot'] = itemInfo
         li.setInfo("video", liVideo)
-#        if "genre" in liVideo:
-#            logDbg("GENRE")
-#            logDbg(liVideo["genre"])
-#            logDbg(li.getProperty("GenreType"))
+        # if "genre" in liVideo:
+        #     logDbg("GENRE")
+        #     logDbg(liVideo["genre"])
+        #     logDbg(li.getProperty("GenreType"))
         xbmcplugin.addDirectoryItem(handle=_handle_, url=url, listitem=li, isFolder=isFolder)
 
     def openGenreDirListing(genre):

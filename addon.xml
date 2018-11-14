@@ -10,11 +10,23 @@
     </extension>
     <extension point="kodi.context.item">
         <menu id="kodi.core.main">
+            <item library="contextmenus/li_action.Open.py">
+                <label>Open</label>
+                <visible>!String.IsEmpty(ListItem.Property(O2TVGoItem.Action.Open))</visible>
+            </item>
             <menu>
                 <label>O2TVGo</label>
+                <item library="contextmenus/li_action.Open.py">
+                    <label>Open</label>
+                    <visible>!String.IsEmpty(ListItem.Property(O2TVGoItem.Action.Open))</visible>
+                </item>
                 <item library="contextmenus/li_action.PlayPrevious.py">
                     <label>Play previous programme (last 10 minutes)</label>
                     <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.PlayPrevious))</visible>
+                </item>
+                <item library="contextmenus/li_action.OpenList.py">
+                    <label>Show all</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.OpenList))</visible>
                 </item>
                 <item library="contextmenus/li_action.MarkWatched.py">
                     <label>Mark as watched</label>
