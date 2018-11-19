@@ -40,6 +40,22 @@
                     <label>Remove</label>
                     <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.RemoveFavouriteKeyword))</visible>
                 </item>
+                <item library="contextmenus/li_action.SetFavouriteKeywordOrderTop.py">
+                    <label>Move to top</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.OrderFavouriteKeywordTop))</visible>
+                </item>
+                <item library="contextmenus/li_action.SetFavouriteKeywordOrderUp.py">
+                    <label>Move up</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.OrderFavouriteKeywordUp))</visible>
+                </item>
+                <item library="contextmenus/li_action.SetFavouriteKeywordOrderDown.py">
+                    <label>Move down</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.OrderFavouriteKeywordDown))</visible>
+                </item>
+                <item library="contextmenus/li_action.SetFavouriteKeywordOrderBottom.py">
+                    <label>Move to bottom</label>
+                    <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.OrderFavouriteKeywordBottom))</visible>
+                </item>
                 <item library="contextmenus/li_info.py">
                     <label>Show info</label>
                     <visible>!ListItem.IsFolder + !String.IsEmpty(ListItem.Property(O2TVGoItem.Action.ShowInfo))</visible>

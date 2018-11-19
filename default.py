@@ -412,8 +412,8 @@ try:
                     os.remove(_m3u_json_)
                 
             except Exception as e:
-#                exc_type, exc_value, exc_traceback = sys.exc_info()
-#                traceback.print_tb(exc_traceback, file=sys.stdout)
+                # exc_type, exc_value, exc_traceback = sys.exc_info()
+                # traceback.print_tb(exc_traceback, file=sys.stdout)
                 logWarn("Exception while reading channels from json: "+str(e))
                 return False
         if os.path.exists(_restart_ok_):
@@ -443,8 +443,18 @@ try:
             'fixIconAndFanartImages2': [
                 "UPDATE epg SET fanart_image=REPLACE(fanart_image, 'http://app.o2tv.czhttp://', 'http://') WHERE fanart_image LIKE 'http://app.o2tv.czhttp://%'",
                 "UPDATE channels SET icon=REPLACE(icon, 'http://app.o2tv.czhttp://', 'http://') WHERE icon LIKE 'http://app.o2tv.czhttp://%'"
+            ],
+            'addFavouriteOrder': [
+                "ALTER TABLE favourites ADD \"order\" INTEGER DEFAULT 0",
+                "UPDATE favourites SET \"order\"=0 WHERE \"order\" IS NULL OR \"order\" = ''"
             ]
         }
+        for lockName in queries:
+            lockVal = _db_.getLock(lockName)
+            if not lockVal:
+                for query in queries[lockName]:
+                    _db_.cexec(query)
+                _db_.setLock(lockName, time.time())
         return True
     
     def _openIptvSimpleClientSettings():
@@ -647,8 +657,9 @@ try:
             #     logDbg(title)
             #     logDbg(actionList)
         elif calledFromList is not None and len(calledFromList) > 0:
-            li.setProperty("O2TVGoItem", calledFromList)
-            actionList.append(('ShowInfo', "deaultfromlist"))
+            if calledFromList != "favouritesKeywords":
+                li.setProperty("O2TVGoItem", calledFromList)
+                actionList.append(('ShowInfo', "deaultfromlist"))
         elif isFolder:
             li.setProperty("O2TVGoItem", "Folder")
         else:
@@ -692,6 +703,16 @@ try:
             actionList.append(('EditFavouriteKeyword', action))
             action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?favouritekeyworddelete=1&rowid='+str(item["id"])+')'
             actionList.append(('RemoveFavouriteKeyword', action))
+            if item["order"] != 0 or item["max"] == 0:
+                action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?setfavouritekeywordorder=1&rowid='+str(item["id"])+'&favouritekeywordneworder=-1)'
+                actionList.append(('OrderFavouriteKeywordTop', action))
+                action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?setfavouritekeywordorder=1&rowid='+str(item["id"])+'&favouritekeywordneworder='+str(item["order"]-1)+')'
+                actionList.append(('OrderFavouriteKeywordUp', action))
+            if item["order"] == 0 or item["order"] != item["max"]:
+                action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?setfavouritekeywordorder=1&rowid='+str(item["id"])+'&favouritekeywordneworder='+str(item["order"]+1)+')'
+                actionList.append(('OrderFavouriteKeywordDown', action))
+                action = 'RunPlugin(plugin://plugin.video.o2tvgo.iptv.simple?setfavouritekeywordorder=1&rowid='+str(item["id"])+'&favouritekeywordneworder='+str(item["max"]+1)+')'
+                actionList.append(('OrderFavouriteKeywordBottom', action))
             if actionList is not None and actionList and len(actionList)>0:
                 for actionTuple in actionList:
                     li.setProperty('O2TVGoItem.Action.'+actionTuple[0], actionTuple[1])
@@ -792,7 +813,7 @@ try:
         if len(plot) > 0:
             xbmcgui.Dialog().textviewer("Plot: "+epg["title"], plot)
 
-    def favouriteKeywordAction(action, rowID=None, titlePattern=None):
+    def favouriteKeywordAction(action, rowID=None, titlePattern=None, orderNew=None):
         if action=="edit":
             if not rowID:
                 return False
@@ -817,6 +838,11 @@ try:
                 return False
             _db_.addFavourite(title_pattern=titlePatternNew)
             notificationInfo(_lang_(30274) % titlePatternNew)
+        elif action=="order":
+            if not rowID:
+                return False
+            _db_.setFavouriteOrder(rowID=rowID, orderNew=orderNew)
+            notificationInfo(_lang_(30278))
         xbmc.executebuiltin('Container.Refresh')
         refreshHome("Favourites")
     
@@ -1973,6 +1999,8 @@ try:
         favouritekeywordedit=None
         favouritekeyworddelete=None
         favouritekeywordadd=None
+        favouritekeywordneworder=None
+        setfavouritekeywordorder=None
         showplot=None
         addtowatchlater=None
         programmetitle=None
@@ -2041,6 +2069,8 @@ try:
             favouriteKeywordAction(action="delete", rowID=rowid)
         elif favouritekeywordadd:
             favouriteKeywordAction(action="add", titlePattern=programmetitle)
+        elif setfavouritekeywordorder:
+            favouriteKeywordAction(action="order", rowID=rowid, orderNew=favouritekeywordneworder)
         elif addtowatchlater:
             #addtowatchlater=1&programmetitle=$INFO[ListItem.Title]&starttime=$INFO[ListItem.StartTime]&channelname=$INFO[ListItem.ChannelName]&startdate=$INFO[ListItem.StartDate]
             addToWatchLater(programmeTitle=programmetitle, startTime=starttime, channelName=channelname, startDate=startdate, epgRowID=epgrowid, channelID=channelid)

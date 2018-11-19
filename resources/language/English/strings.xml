@@ -68,6 +68,7 @@
   <string id="30275">The item has been removed successfully</string>
   <string id="30276">The item has been removed from Favourites successfully</string>
   <string id="30277">The favourite item has been updated to '%s' successfully</string>
+  <string id="30278">Order was set successfully</string>
   
   <string id="30500">Error ocurred during runtime.</string>
   <string id="30501">Allow reporting of errors?</string>

@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS epg (
 
 CREATE TABLE IF NOT EXISTS favourites (
     id INTEGER PRIMARY KEY ASC,
-    title_pattern TEXT
+    title_pattern TEXT,
+    "order" INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS lock (

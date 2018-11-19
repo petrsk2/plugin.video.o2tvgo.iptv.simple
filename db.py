@@ -722,20 +722,14 @@ class O2tvgoDB:
         if not list in ["favourites", "isRecentlyWatched", "isWatchLater", "inProgressTime"]:
             return []
         if list == "favourites":
-            self.cexec("SELECT * FROM favourites")
-            where = ""
-            vars= ()
-            for row in self.cursor:
-                if len(where) > 0:
-                    where += " OR "
-                where += "e.title LIKE ?"
-                vars = vars + ("%"+row["title_pattern"]+"%", )
+            # self.cexec("SELECT e.*, ch.name AS channelName, CAST(strftime('%s','now') AS INTEGER) > e.\"end\" isPast, f.title_pattern, f.\"order\" FROM epg e JOIN channels ch ON e.channelID = ch.id JOIN favourites f ON e.title LIKE '%' || f.title_pattern || '%' ORDER BY isPast DESC, f.\"order\" ASC, e.title ASC, e.startTimestamp ASC", vars)
+            self.cexec("SELECT DISTINCT e.*, ch.name AS channelName, CAST(strftime('%s','now') AS INTEGER) > e.\"end\" isPast FROM epg e JOIN channels ch ON e.channelID = ch.id JOIN favourites f ON e.title LIKE '%' || f.title_pattern || '%' ORDER BY isPast DESC, f.\"order\" ASC, e.title ASC, e.startTimestamp ASC")
         else:
             where = "e."+list+" > ?"
             vars = (0, )
-        if len(where) == 0:
-            return []
-        self.cexec("SELECT e.*, ch.name AS channelName, CAST(strftime('%s','now') AS INTEGER) > e.\"end\" isPast FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE "+where+" ORDER BY isPast DESC, e.title ASC, e.startTimestamp ASC", vars)
+            if len(where) == 0:
+                return []
+            self.cexec("SELECT e.*, ch.name AS channelName, CAST(strftime('%s','now') AS INTEGER) > e.\"end\" isPast FROM epg e JOIN channels ch ON e.channelID = ch.id WHERE "+where+" ORDER BY isPast DESC, e.title ASC, e.startTimestamp ASC", vars)
         epgList = []
         epgColumns = self._getEpgColumns()
         for row in self.cursor:
@@ -879,7 +873,7 @@ class O2tvgoDB:
     def getFavourites(self):
         if not self.tablesOK:
             return False
-        self.cexec("SELECT * FROM favourites ORDER BY title_pattern ASC")
+        self.cexec("SELECT *, (SELECT max(\"order\") FROM favourites) AS max FROM favourites ORDER BY \"order\" ASC, title_pattern ASC")
         favList = []
         for row in self.cursor:
             if "title_pattern" in row or not row["title_pattern"]:
@@ -888,31 +882,46 @@ class O2tvgoDB:
                 title_pattern = row["title_pattern"]
             favDict = {
                 "id": row["id"],
-                "title_pattern": title_pattern
+                "title_pattern": title_pattern,
+                "order": row["order"],
+                "max": row["max"]
             }
             favList.append(favDict)
         return favList
     
-    def getFavourite(self, rowID=None, title_pattern=None, silent=True):
+    def getFavourite(self, rowID=None, title_pattern=None, silent=True, returnRow=False):
         if not self.tablesOK or (not rowID and not title_pattern):
             return False
-        if title_pattern:
-            self.cexec("SELECT title_pattern FROM favourites WHERE title_pattern = ?",  (title_pattern, ))
+        if returnRow:
+            if title_pattern:
+                self.cexec("SELECT * FROM favourites WHERE title_pattern = ?",  (title_pattern, ))
+            else:
+                self.cexec("SELECT * FROM favourites WHERE id = ?",  (rowID, ))
         else:
-            self.cexec("SELECT title_pattern FROM favourites WHERE id = ?",  (rowID, ))
+            if title_pattern:
+                self.cexec("SELECT title_pattern FROM favourites WHERE title_pattern = ?",  (title_pattern, ))
+            else:
+                self.cexec("SELECT title_pattern FROM favourites WHERE id = ?",  (rowID, ))
         all = self.cursor.fetchall()
         rowcount = len(all)
         if rowcount > 1:
             self.logWarn("More than one row match the favourites search criteria for: id = "+str(rowID)+"!")
             self.cleanFavouriteDuplicates(doDelete=True)
-            return self.getFavourite(rowID)
+            return self.getFavourite(rowID, title_pattern, silent)
         if rowcount == 0:
             if not silent:
                 self.logWarn("No row matches the favourites search criteria for: id = "+str(rowID)+"!")
             return False
         r = all[0]
-        val = r[0]
-        return val
+        if returnRow:
+            return {
+                "id": r["id"],
+                "title_pattern": r["title_pattern"],
+                "order": r["order"]
+            }
+        else:
+            val = r[0]
+            return val
     
     def addFavourite(self, title_pattern):
         if not self.tablesOK:
@@ -933,6 +942,41 @@ class O2tvgoDB:
         if not self.tablesOK:
             return False
         self.cexec("DELETE FROM favourites WHERE id = ?",  (rowID, ))
+    
+    def setFavouriteOrder(self, rowID, orderNew):
+        if not self.tablesOK:
+            return False
+        fav = self.getFavourite(rowID=rowID, returnRow=True)
+        if fav == False:
+            return False
+        self.cexec("SELECT id, \"order\" FROM favourites WHERE \"order\" = ?",  (orderNew, ))
+        all = self.cursor.fetchall()
+        rowcount = len(all)
+        if rowcount > 1:
+            self.logWarn("More than one row match the favourites search criteria for: id = "+str(rowID)+"!")
+            self.cleanFavouriteDuplicates(doDelete=True)
+            return self.setFavouriteOrder(rowID, orderNew)
+        if rowcount > 0:
+            # Found an item with order=orderNew, so let's set its order to the old order of item with id rowID
+            row = all[0]
+            fav2id = row[0]
+            fav2order = row[1]
+            self.cexec("UPDATE favourites SET \"order\" = ? WHERE id = ?",  (fav["order"], fav2id))
+        self.cexec("UPDATE favourites SET \"order\" = ? WHERE id = ?",  (orderNew, rowID))
+        self.fixFavouriteOrders()
+    
+    def fixFavouriteOrders(self):
+        if not self.tablesOK:
+            return False
+        sql = '''
+            CREATE TEMPORARY TABLE new_orders(i INTEGER PRIMARY KEY, id INTEGER);
+            INSERT INTO new_orders SELECT NULL, id FROM favourites ORDER BY "order" ASC, title_pattern ASC;
+            UPDATE favourites
+                SET "order" = (SELECT (i-1) FROM new_orders o WHERE o.id = favourites.id)
+                WHERE id IN (SELECT id FROM new_orders);
+            DROP TABLE new_orders;
+        '''
+        self.cexecscript(sql)
     
     def getEpgListCounts(self, silent=True):
         if not self.tablesOK:
