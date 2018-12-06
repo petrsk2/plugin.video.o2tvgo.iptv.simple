@@ -267,6 +267,7 @@ try:
                 return None
             except RequestError:
                 _db_.setLock("saveEpgRunning", time.time()+_requestErrorTimeout_)
+                d = xbmcgui.Dialog()
                 d.notification(_scriptname_, _lang_(30513) % str(_requestErrorTimeoutMin_)+" minutes", xbmcgui.NOTIFICATION_ERROR)
                 return None
         return channels
